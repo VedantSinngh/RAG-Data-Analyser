@@ -24,7 +24,7 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   
   // Custom API overrides
-  const [apiEndpoint, setApiEndpoint] = useState("http://localhost:8000");
+  const [apiEndpoint, setApiEndpoint] = useState("https://rag-data-analyser.onrender.com");
   const [groqApiKey, setGroqApiKey] = useState("");
   const [groqModel, setGroqModel] = useState("llama-3.3-70b-versatile");
   const [huggingfaceKey, setHuggingfaceKey] = useState("");
@@ -161,7 +161,7 @@ export default function SettingsPage() {
                   type="url"
                   value={apiEndpoint}
                   onChange={(e) => setApiEndpoint(e.target.value)}
-                  placeholder="http://localhost:8000"
+                  placeholder="https://rag-data-analyser.onrender.com"
                   className="w-full bg-canvas text-ink border border-hairline rounded-md px-3 py-2.5 text-caption focus:border-ink outline-none"
                   required
                 />

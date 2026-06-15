@@ -4893,7 +4893,7 @@ export default function WorkspacePage() {
           </p>
         </div>
         <a 
-          href="http://localhost:8000/docs" 
+          href="https://rag-data-analyser.onrender.com/docs" 
           target="_blank" 
           rel="noopener noreferrer" 
           className="btn-secondary-on-dark no-underline text-ink font-semibold shrink-0"

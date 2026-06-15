@@ -35,7 +35,7 @@ export default function RootLayout({
               <a href="/" className="text-body-md text-ink font-semibold no-underline hover:text-ink/80 transition-colors">
                 Workspace Dashboard
               </a>
-              <a href="http://localhost:8000/docs" target="_blank" rel="noopener noreferrer" className="text-body-md text-muted no-underline hover:text-ink transition-colors">
+              <a href="https://rag-data-analyser.onrender.com/docs" target="_blank" rel="noopener noreferrer" className="text-body-md text-muted no-underline hover:text-ink transition-colors">
                 API Sandbox
               </a>
               <a href="/settings" className="text-body-md text-muted no-underline hover:text-ink transition-colors">
@@ -91,7 +91,7 @@ export default function RootLayout({
                 <span className="text-ink text-caption font-bold uppercase tracking-wider">Platform</span>
                 <ul className="list-none p-0 m-0 flex flex-col gap-xs text-body-md">
                   <li><a href="/" className="text-muted hover:text-ink no-underline transition-colors">Workspace Console</a></li>
-                  <li><a href="http://localhost:8000/docs" target="_blank" className="text-muted hover:text-ink no-underline transition-colors">Swagger API</a></li>
+                  <li><a href="https://rag-data-analyser.onrender.com/docs" target="_blank" className="text-muted hover:text-ink no-underline transition-colors">Swagger API</a></li>
                   <li><a href="/settings" className="text-muted hover:text-ink no-underline transition-colors">Configuration</a></li>
                 </ul>
               </div>
@@ -110,7 +110,7 @@ export default function RootLayout({
               <div className="flex flex-col gap-sm">
                 <span className="text-ink text-caption font-bold uppercase tracking-wider">Resources</span>
                 <ul className="list-none p-0 m-0 flex flex-col gap-xs text-body-md">
-                  <li><a href="http://localhost:8000/api/v1/health" target="_blank" className="text-muted hover:text-ink no-underline transition-colors">API Node Health</a></li>
+                  <li><a href="https://rag-data-analyser.onrender.com/api/v1/health" target="_blank" className="text-muted hover:text-ink no-underline transition-colors">API Node Health</a></li>
                   <li><a href="https://console.groq.com" target="_blank" className="text-muted hover:text-ink no-underline transition-colors">Groq Console</a></li>
                   <li><a href="https://huggingface.co" target="_blank" className="text-muted hover:text-ink no-underline transition-colors">HuggingFace Hub</a></li>
                 </ul>

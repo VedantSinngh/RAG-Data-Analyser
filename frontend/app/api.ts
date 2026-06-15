@@ -11,7 +11,7 @@ const DEFAULT_API_BASE: string = (() => {
       return envUrl.replace(/\/api\/v1\/?$/, "");
     }
   } catch (_) {}
-  return "http://localhost:8000";
+  return "https://rag-data-analyser.onrender.com";
 })();
 
 export const getApiUrl = (path: string): string => {
