@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings
+from pydantic import field_validator
 
 class Settings(BaseSettings):
     APP_ENV: str = "development"
@@ -7,6 +8,15 @@ class Settings(BaseSettings):
     
     # Database URL
     DATABASE_URL: str = "postgresql+asyncpg://postgres:password@postgres:5432/analystai"
+    
+    @field_validator("DATABASE_URL", mode="before")
+    @classmethod
+    def format_database_url(cls, v: str) -> str:
+        if v.startswith("postgres://"):
+            return v.replace("postgres://", "postgresql+asyncpg://", 1)
+        elif v.startswith("postgresql://") and "+asyncpg" not in v:
+            return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return v
     
     # Groq API config (OpenAI-compatible)
     # Base URL: https://api.groq.com/openai/v1
@@ -28,3 +38,4 @@ class Settings(BaseSettings):
         extra = "ignore"
 
 settings = Settings()
+
