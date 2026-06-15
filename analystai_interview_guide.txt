@@ -1,0 +1,355 @@
+================================================================================
+                       ANALYSTAI INTERVIEW PREPARATION GUIDE
+================================================================================
+
+QUESTION 1: Overall System Architecture and Component Integration
+
+INTERVIEW ANSWER:
+AnalystAI is built on a decoupled three-tier architecture that integrates a Next.js client, a FastAPI web backend, a PostgreSQL relational database, and a ChromaDB vector database. This design enables secure data analysis, time-series forecasting, and conversational RAG operations by separating UI layout, business logic execution, transactional data storage, and vector indexing.
+
+To explain how the system works end-to-end:
+1. The Next.js frontend captures user inputs, uploads files, or initiates chat queries, communicating with the backend via REST API calls with custom authorization headers.
+2. The FastAPI backend serves as the orchestration layer, containing routers that manage authentication, file ingestion, statistical calculations, and agent completions.
+3. PostgreSQL manages persistent state storage—such as user credentials, uploaded document metadata, conversational messages, agent execution logs, and chart visual coordinates—mapped using SQLAlchemy ORM.
+4. ChromaDB operates as the vector database, storing high-dimensional text chunk embeddings and performing semantic vector searches for RAG context retrieval.
+5. External APIs, such as HuggingFace Inference API for embeddings and Groq completions API, are called by the backend orchestration layer to perform inference, with offline fallbacks implemented locally.
+
+- Frontend advantages: React state isolation allows high-speed dashboard switching and client-side custom SVG charts rendering without overloading backend graphics libraries.
+- Backend advantages: FastAPI's asynchronous endpoint routing ensures concurrent execution of file operations and time-series modeling without blocking thread pools.
+- Disadvantages: The reliance on external LLM and embedding endpoints creates network latencies and security concerns regarding corporate data privacy, which are partially mitigated by local offline fallbacks.
+
+For example, when a user queries a document, the request flows from the Next.js chat console to the FastAPI chat router, which fetches vector segments from ChromaDB, compiles the context, calls Groq, and writes the conversation back to PostgreSQL.
+
+TO REMEMBER:
+The frontend manages layout and chart visualization; the backend orchestrates logic; PostgreSQL stores historical metadata, while ChromaDB handles low-latency vector retrieval.
+
+
+================================================================================
+
+QUESTION 2: User Authentication and Database Sync
+
+INTERVIEW ANSWER:
+The user authentication system is a secure token-based validation workflow that generates JSON Web Tokens (JWT) signed with a local secret key, synchronizing user state with a relational database. It serves as the security gateway for all API endpoints, verifying user identity and ensuring that data access is restricted to owned resources.
+
+The authentication and synchronization process operates as follows:
+1. A user logs in or registers via the `/auth/login` or `/auth/register` FastAPI endpoints, providing credentials that return a JWT bearer token.
+2. For local development, the system contains an auto-registration feature that automatically creates and saves a new user record in PostgreSQL if an unknown email attempts to log in.
+3. Every protected API request transmits this token within the Authorization header.
+4. The backend dependency `get_current_user` intercepts the request, decodes the token using the system's `SECRET_KEY`, and extracts the user ID and email.
+5. The dependency executes a query against PostgreSQL via SQLAlchemy; if the user is not found, it dynamically registers them in the SQL database to maintain user state synchronization.
+
+- Advantages: Zero-friction local developer setup eliminates external OAuth configuration hurdles while maintaining strict, database-backed user isolation.
+- Disadvantages: The use of local symmetric signing keys in development requires transitioning to asymmetric public-private keys (e.g., RS256 via Supabase) in production environments.
+
+For example, when a developer logs in with the email `dev-user@analystai.local`, the server creates a JWT containing this email, validates it on subsequent calls, and ensures that the user only accesses their own documents and chat threads in PostgreSQL.
+
+TO REMEMBER:
+JWT tokens authorize client requests, and the backend automatically synchronizes or registers the decoded identity inside PostgreSQL to enforce user-level data isolation.
+
+
+================================================================================
+
+QUESTION 3: Multi-Format Ingestion and Parsing Pipeline
+
+INTERVIEW ANSWER:
+The document ingestion pipeline is a multi-format file processing mechanism that accepts unstructured documents and tabular spreadsheets, extracts their text, and indexes them for relational metadata and vector searches. It acts as the initial gateway for data entry, automatically routing files to dedicated parsing libraries based on their MIME type or file extension.
+
+The process functions through the following steps:
+1. The user uploads a document through a drag-and-drop React interface, which is received by the backend as an `UploadFile` stream.
+2. The backend writes the file to disk in a local `/app/uploads` staging directory and extracts the file extension.
+3. The pipeline routes the file to its corresponding parser:
+   - For CSV and Excel (`.xlsx`, `.xls`) files, it utilizes Pandas to read sheets, converting rows into structured text sentences mapping column keys to values.
+   - For PDF documents, it utilizes `pypdf`'s `PdfReader` to extract textual contents page by page.
+   - For Word documents (`.docx`), it utilizes `python-docx` to extract raw paragraphs.
+   - For TXT files, it reads the raw text directly using UTF-8 encoding.
+4. The parsed text is checked for emptiness, and then forwarded to the text chunker.
+5. The extracted metadata (such as row count, file size, columns, and previews) is saved into the PostgreSQL `Document` table, while the text segments are sent to the vector store.
+
+- Advantages: Support for multiple document layouts permits indexing of heterogenous data sources, including unstructured reports and tabular databases, in a unified index.
+- Disadvantages: Memory usage can spike when parsing massive Excel or PDF files in-memory, which can trigger container out-of-memory errors on limited container nodes.
+
+For example, if a user uploads a financial spreadsheet named `Q2_sales.csv`, the pipeline reads it via Pandas, converts each row to the format `Row 1: Date: 2026-06-15, Sales: 5000`, and pushes these row-string representations to the RAG database.
+
+TO REMEMBER:
+File extensions dictate the parser (Pandas, pypdf, docx) used to convert raw documents into standard text representations prior to database storage and chunking.
+
+
+================================================================================
+
+QUESTION 4: Text Chunking and Sliding Window Overlap
+
+INTERVIEW ANSWER:
+Text chunking is a document segmentation process that splits continuous extracted text into smaller, overlapping character strings to prepare them for vector embedding generation. It ensures that the document text is divided into blocks that fit within the context window limits of embedding models and LLMs while preserving semantic transition boundaries.
+
+The chunking process is executed through these steps:
+1. The extracted text is split into a list of words.
+2. The chunker calculates the target words per chunk by dividing the character limit by 6, mapping the default 1000 characters to approximately 160 words.
+3. It sets a sliding overlap window, mapping the 200-character overlap setting to approximately 32 words.
+4. The algorithm loops through the word list, slicing blocks of text of the target length and advancing the index by the step size (which equals chunk size minus overlap).
+5. Any trailing words at the end of the document are grouped into a final chunk.
+6. The resulting text segments are registered in the `Embedding` PostgreSQL table alongside their original document ID and index positions.
+
+- Overlap logic: Placing overlapping text between consecutive chunks prevents losing contextual details that occur at the boundary lines.
+- Advantages: Word-based boundaries prevent cutting words in half, yielding clean sentences for vector indexing.
+- Disadvantages: Using fixed character/word lengths can sometimes split a unified paragraph or table across chunks, losing structural coherence.
+
+For example, if a document contains a sentence split exactly at character 1000, the sliding window includes the split words in both Chunk 1 and Chunk 2, ensuring that search queries matching those words retrieve the full context.
+
+TO REMEMBER:
+Slicing text into 1000-character blocks with 200-character overlaps preserves semantic boundaries and prevents context loss at chunk edges.
+
+
+================================================================================
+
+QUESTION 5: Embedding Generation and Fallback Resiliency
+
+INTERVIEW ANSWER:
+The embeddings fallback chain is a resilient vector generation workflow that translates text chunks into 384-dimensional mathematical arrays for semantic indexing, utilizing remote inference with a local offline fallback. This system guarantees that the platform remains operational and indexes documents successfully, even in offline environments or when external API keys are missing.
+
+The process of selecting and generating embeddings follows these steps:
+1. The backend receives text chunks and checks for the presence of a HuggingFace API key in the request headers or configuration settings.
+2. If the API key is present, the backend sends an HTTP POST request to the HuggingFace Inference API utilizing the `sentence-transformers/all-MiniLM-L6-v2` model.
+3. If the request is successful, it returns a 384-dimensional semantic embedding vector representing the contextual meaning of the text.
+4. If the HuggingFace call fails or no API key is set, the local offline fallback is activated:
+   - The backend hashes each text chunk using the SHA-256 algorithm.
+   - It iterates 384 times over the hash bytes, scaling byte values to floating-point numbers between `-1.0` and `1.0` to form a deterministic 384-dimensional vector.
+5. The resulting vectors (whether semantic or hashed) are uploaded to ChromaDB under the same collection, ensuring database compatibility.
+
+- HuggingFace Variant: Generates semantic embeddings where vector distance correlates to conceptual similarity.
+- Local Hash Variant: Generates deterministic structural embeddings where identical text yields identical vectors, matching keyword search behavior.
+- Advantages: Ensures zero configuration out-of-the-box local testing, eliminating startup errors due to API rate limits or lack of internet access.
+- Disadvantages: The local hash fallback lacks true semantic understanding, meaning searches rely on exact structural keyword matches rather than conceptual equivalents.
+
+For example, query text "revenue reports" under the HuggingFace variant matches chunks containing "financial sales," whereas the local hash variant only matches chunks containing the exact words "revenue reports."
+
+TO REMEMBER:
+HuggingFace provides conceptual semantic vectors, while the offline SHA-256 fallback generates deterministic keyword-matching vectors to prevent database dimension mismatch.
+
+
+================================================================================
+
+QUESTION 6: Tabular Data Profiling and Statistical Summary
+
+INTERVIEW ANSWER:
+Tabular data profiling is an analytical agent routine that automatically inspects structured datasets to extract statistical metrics, schemas, and anomaly logs, compiling them into a JSON profile. This metadata profile is stored in PostgreSQL and used by the frontend to render data previews and by the LLM to understand the dataset structure.
+
+The profiling workflow executes as follows:
+1. The parsed DataFrame is evaluated to determine row counts, column counts, and column header listings.
+2. Columns are classified into four data types based on content mapping:
+   - Numeric: Int and float data types.
+   - Datetime: Columns matching ISO datetime formats.
+   - Boolean: Logical true/false columns.
+   - Categorical: Text labels and unique keys.
+3. Numeric columns are processed to calculate summary statistics including mean, median, standard deviation, minimum, and maximum values.
+4. Data quality anomalies are detected, specifically columns with high null rates (above 30%) and duplicate rows.
+5. If a Groq API key is present, the summary is sent to the LLM to generate 5 precise natural language business questions tailored to the dataset.
+6. The compiled metrics are stored as a JSON object in the `metadata_json` column of the `Document` database model.
+
+- Advantages: Provides immediate data-health visibility and auto-populates charting variables without requiring manual user configurations.
+- Disadvantages: Large datasets with millions of cells can slow down the initial profiling process, leading to response timeouts during file uploads.
+
+For example, when profiling a dataset with a column `Age`, the system detects it is numeric, calculates the mean age, identifies any null entries, and writes this into the document metadata to let the UI display statistical summaries.
+
+TO REMEMBER:
+Profiling summarizes tabular schemas, calculates statistical distributions, flags anomalies, and pre-populates LLM questions to guide user interactions.
+
+
+================================================================================
+
+QUESTION 7: Conversational RAG Vector Retrieval
+
+INTERVIEW ANSWER:
+Conversational RAG is an information retrieval workflow that queries the ChromaDB vector database using the user's chat input to inject relevant text segments into the LLM system prompt. This mechanism grounds the AI's responses in the uploaded documents, preventing hallucinations and providing verifiable source citations.
+
+The RAG query and prompt assembly runs through these steps:
+1. The user submits a message, which is embedded into a query vector using the active embeddings model.
+2. The system executes a query against ChromaDB to find the top 3 most similar document chunks, applying filter criteria to restrict results to the current user's ID and the selected document ID.
+3. The retrieved chunks are structured into a text block, with each segment clearly demarcated by its filename and chunk index.
+4. The system prompt is constructed, embedding the retrieved context and prescribing strict rules of engagement (such as step-by-step reasoning, markdown formatting, and business recommendation layouts).
+5. The compiled system prompt, the user's message, and historical context are dispatched to the Groq completions endpoint.
+6. If the LLM call fails or no API key is configured, the system falls back to returning the raw retrieved text blocks with a warning.
+
+- Advantages: Eliminates LLM hallucinations by forcing responses to rely on verified, user-uploaded source text.
+- Disadvantages: If the initial vector search returns irrelevant chunks due to poor semantic matches, the LLM's final response will also be irrelevant.
+
+For example, if the user asks "What was our revenue in Q3?", the vector store retrieves a chunk from `financials.pdf` stating "Q3 revenue reached 5 million", which is injected into the system prompt to let the LLM reply with the exact figure.
+
+TO REMEMBER:
+Vector search isolates relevant context from ChromaDB, which is formatted as a system prompt to constrain the LLM to factual, cited document details.
+
+
+================================================================================
+
+QUESTION 8: Chat History Memory and Context Slicing
+
+INTERVIEW ANSWER:
+Conversational memory management is a state preservation technique that logs message histories in PostgreSQL and applies a sliding window to limit the conversation context sent to the LLM. It balances conversational continuity with API token consumption, preventing context window overflows.
+
+The memory pipeline is managed through these steps:
+1. Every message sent by the user and every response generated by the assistant is appended as a structured JSON object to the `messages` array in the `Conversation` database record.
+2. When a new message is received, the backend retrieves the entire conversation thread from PostgreSQL.
+3. Before compiling the final API payload, the backend slices the message history, selecting only the last 10 turns (5 user-assistant pairs).
+4. The system prompt containing RAG context is placed at index 0, followed by the sliced history and the new user message.
+5. The conversation record's `updated_at` timestamp is updated, and the payload is dispatched to the LLM.
+
+- PostgreSQL Storage: Retains the entire historical log of the chat for display in the frontend UI.
+- API Context Buffer: Restricts active memory to the last 10 messages to protect API limits and model attention spans.
+- Advantages: Prevents token bloating and keeps API costs predictable while maintaining context on recent conversation turns.
+- Disadvantages: The LLM will lose context regarding details discussed early in a long chat session, requiring the user to re-state critical parameters.
+
+For example, if a user has exchanged 30 messages in a chat thread, the frontend displays all 30 messages, but the backend only sends the last 10 messages to Groq when generating the next response.
+
+TO REMEMBER:
+PostgreSQL stores the full conversation history for UI rendering, but the backend slices the history to the last 10 messages to avoid LLM context window overflows.
+
+
+================================================================================
+
+QUESTION 9: Data Scrubbing and Outlier Winsorization
+
+INTERVIEW ANSWER:
+The data cleansing agent is an automated preprocessing module that scans numerical columns in a dataset and winsorizes outlier data points using the Interquartile Range (IQR) method. It stabilizes downstream forecasting models by clipping extreme value spikes that would otherwise skew trend lines and ARIMA coefficients.
+
+The outlier scrubbing process follows these steps:
+1. The agent identifies all numerical columns in the dataset and ignores columns containing NaN values during quantile calculations.
+2. For each column, it calculates the first quartile (Q1, 25th percentile) and the third quartile (Q3, 75th percentile).
+3. It computes the Interquartile Range as `IQR = Q3 - Q1`.
+4. It sets the outlier boundaries at `lower_bound = Q1 - 1.5 * IQR` and `upper_bound = Q3 + 1.5 * IQR`.
+5. If winsorization is enabled, the agent clips values outside these boundaries using NumPy, replacing extreme low values with the `lower_bound` and extreme high values with the `upper_bound`.
+6. The agent records the number of outliers detected, their bounds, and the column statistics in the SQL `AgentLog` table.
+
+- Winsorization (Clipping): Keeps outlier rows in the dataset but adjusts their values to the boundary limits.
+- Trimming (Alternative, not used here): Deletes the entire row from the dataset if an outlier is present.
+- Advantages: Preserves the integrity of dates and surrounding columns in time-series datasets while mitigating the impact of extreme spikes.
+- Disadvantages: It can obscure genuine business occurrences, such as a major Black Friday sales spike, by incorrectly labeling them as outliers and clipping their values.
+
+For example, in a sales column where most values are around $100 but one value is $10,000, winsorizing might calculate the upper limit at $250 and clip the $10,000 data point to $250 to protect model stability.
+
+TO REMEMBER:
+IQR winsorization calculates bounds at 1.5 times the interquartile range, clipping extreme values to stabilize forecasting models without deleting rows.
+
+
+================================================================================
+
+QUESTION 10: Time-Series Forecasting Models (ARIMA vs Regression Fallback)
+
+INTERVIEW ANSWER:
+The time-series forecasting agent is an analytical engine that processes chronological data points to model historical trends and project future values along with 95% confidence intervals. It employs a two-tier strategy, attempting a statistical ARIMA model first and falling back to a linear trend regression if the primary model fails.
+
+The forecasting agent executes through the following steps:
+1. The dataset is parsed, dates are converted to datetime, and records with null timestamps or target values are discarded.
+2. The data is sorted chronologically, and records with duplicate dates are grouped by calculating their mean values.
+3. The agent validates that at least 5 historical data points exist; otherwise, it throws a validation error.
+4. It attempts to fit an ARIMA(1, 1, 1) model (Autoregressive Integrated Moving Average) to capture auto-correlative trends and projects future values alongside 95% confidence bounds.
+5. If the ARIMA model fails to converge or errors due to insufficient variance, the system activates the fallback:
+   - It instantiates a Scikit-Learn Linear Regression model using chronological index values as the independent variable.
+   - It fits the regression line, calculates projections, and computes the standard error of historical residuals.
+   - The confidence intervals are calculated using the formula: `prediction +/- 1.96 * standard_error`.
+6. It estimates future dates by projecting the median time step and saves the forecast output and agent logs to PostgreSQL.
+
+- ARIMA Variant: Captures complex seasonal patterns and momentum changes in data, requiring stationary time series.
+- Linear Regression Variant: Captures simple linear growth or decline, acting as a robust mathematical backup.
+- Advantages: Guarantees a valid numerical forecast and confidence interval output even under highly erratic data conditions.
+- Disadvantages: The basic ARIMA(1,1,1) model lacks seasonal parameters (SARIMA), which limits its accuracy when modeling highly seasonal datasets.
+
+For example, when forecasting weekly sales, the system will model monthly fluctuations using ARIMA; if the data is too sparse, it falls back to drawing a straight line representing the overall growth trend.
+
+TO REMEMBER:
+The agent prioritizes ARIMA(1,1,1) to capture auto-correlative trends, falling back to a Linear Regression trend-line if mathematical convergence fails.
+
+
+================================================================================
+
+QUESTION 11: Dynamic Client-Side SVG Charting
+
+INTERVIEW ANSWER:
+The client-side SVG charting engine is a custom React visualization module that dynamically constructs vector-based mathematical plots directly inside the Next.js frontend using raw data coordinates. It bypasses heavy third-party canvas or webgl libraries, rendering lightweight, high-performance visual dashboards that support interactive customization.
+
+The charting system operates through these steps:
+1. The React component receives the coordinate array containing historical values, forecast values, and confidence intervals.
+2. It calculates the minimum and maximum values across all series to determine the Y-axis range, adding 8% padding to prevent data points from clipping against the chart borders.
+3. The X and Y coordinates are mapped to pixel coordinates within an 800x480 SVG viewBox container.
+4. React renders SVG visual elements based on the selected plot type:
+   - For line charts: It draws SVG `<path>` elements connecting coordinate coordinates.
+   - For distribution charts: It renders `<polygon>` paths or `<rect>` cells.
+   - For hierarchical models: It maps radial slices using SVG path arcs.
+5. Custom themes (such as classic, dark, or cyberpunk) and color palettes are applied dynamically, modifying stroke colors, grid line dash styles, and fill opacities.
+6. The interactive dashboard provides controls to export the rendered SVG string directly to a file, or export the data coordinates to a CSV.
+
+- Advantages: Extremely fast page loads and zero bundle size inflation from heavy external charting packages.
+- Disadvantages: Adding advanced animations or complex chart overlays (like interactive tooltips) requires writing custom SVG event handlers from scratch.
+
+For example, when rendering a forecasted trend line with 95% confidence intervals, the engine draws a shaded SVG `<path>` representing the confidence boundaries, overlaid with a solid red line for the predictions.
+
+TO REMEMBER:
+SVG rendering converts numerical coordinates into raw SVG paths and shapes, providing fast rendering and CSS styling without external dependencies.
+
+
+================================================================================
+
+QUESTION 12: Executive PDF Report Compilation
+
+INTERVIEW ANSWER:
+The executive report PDF compiler is a document generation service that programmatically constructs print-ready PDF summaries of forecasting results and pipeline agent logs. It utilizes the ReportLab Python library to structure data into layouts, ensuring executive-ready formatting and consistent document margins.
+
+The report generation workflow runs through these steps:
+1. The user requests a report by sending a title and an analysis run ID to the `/reports/create` endpoint.
+2. The backend retrieves the analysis metadata, the data coordinates, and the execution logs from PostgreSQL.
+3. It initializes a ReportLab SimpleDocTemplate specifying letter margins and constructs a layout "story" list.
+4. It compiles styles based on a high-contrast theme (using Helvetica-Bold for headings and Times-Roman for body text).
+5. It formats the data:
+   - The last 3 historical data points and the new forecast horizon are formatted into a structured ReportLab Table.
+   - Table styles are applied, including a solid black header background, white text, and light grey grid lines.
+   - The cleansing and forecasting agent execution times and outcomes are written as audit log paragraphs.
+6. The `doc.build(story)` function is called, writing the compiled binary PDF to `/app/uploads/reports` and registering the metadata in PostgreSQL.
+
+- SimpleDocTemplate: Manages page margins, page orientations, and automatically wraps multi-page documents.
+- Platypus Flowables: Flowing objects (like Paragraphs and Tables) that are appended to the document layout stack sequentially.
+- Advantages: Generates professional, vector-sharp, print-ready PDF documents on the server without headless browser dependencies.
+- Disadvantages: Modifying layout structures requires adjusting rigid Python layout blocks rather than editing standard HTML or CSS stylesheets.
+
+For example, compiling a report for a sales forecast generates a PDF containing a formatted table showing projected sales numbers, confidence intervals, and a diagnostic summary of the data cleansing steps.
+
+TO REMEMBER:
+ReportLab compiles database coordinates and agent logs into vector-sharp, print-ready PDF files using structured tables and typography.
+
+
+================================================================================
+
+QUESTION 13: End-to-End Project Pitch Guide
+
+INTERVIEW ANSWER:
+To pitch this project in an interview, I structure the explanation using the STAR method, focusing on the system's design, architectural decisions, and agent workflows. I frame it as a "Multi-Agent RAG-powered Data Analysis Platform" designed to automate the ingestion, analysis, visualization, and reporting of structured and unstructured business datasets.
+
+The pitch runs through these key sections:
+1. The Architecture (Tech Stack): "I designed a decoupled three-tier system combining Next.js for the UI, FastAPI for backend orchestration, PostgreSQL for metadata tracking, and ChromaDB for vector retrieval. I implemented custom client-side SVG charting to ensure fast dashboard performance and built a server-side ReportLab compiler to export print-ready executive PDFs."
+2. The Ingestion & RAG Pipeline: "The platform parses multi-format uploads (PDF, Word, CSV, Excel) and chunks them with overlapping sliding windows. I designed a resilient embeddings fallback chain that queries HuggingFace's model online but falls back to a local offline deterministic hash-vector generator, ensuring the system remains functional under network constraints."
+3. The Analytics & Forecasting Agents: "For structured data, I built a multi-agent system. A Data Cleansing Agent scans numerical columns and winsorizes outliers using the IQR method. This feeds into a Forecasting Agent that models trends using ARIMA(1,1,1), falling back to a trend-line linear regression with residual standard errors for confidence intervals if convergence fails."
+4. The RAG & Conversational Agents: "I built a conversational interface that queries ChromaDB for the top 3 relevant chunks, formats them into a strict prompt defining analyst behaviors, and retrieves answers via Groq's API. I managed the model's context limits by implementing a sliding message memory buffer restricted to the last 10 turns."
+5. Key Engineering Highlights: "Critical features include local offline fallbacks, auto-handling of database schema mismatches, custom lightweight SVG visualization, and server-side PDF report compilation, ensuring a reliable business-ready workstation."
+
+- Advantages: Proves full-stack proficiency, deep understanding of time-series mathematics, vector database operations, and system resilience.
+- Disadvantages: Complex architectures can be difficult to explain in short interviews, requiring a focus on high-level workflows.
+
+For example, I would start by saying: "I built AnalystAI, a senior data analyst workstation that automates data parsing, cleansing, ARIMA time-series forecasting, and conversational RAG, letting business users analyze documents and data through natural language."
+
+TO REMEMBER:
+Focus the pitch on full-stack architecture, embedding fallbacks, data-cleaning agents, forecasting logic, and server-side PDF generation.
+
+
+================================================================================
+                         QUICK REVISION CHEAT SHEET
+================================================================================
+* System Architecture: decoupled React/Next.js frontend, FastAPI endpoints, PostgreSQL PostgreSQL state management, and ChromaDB vector search.
+* Ingestion & Parsers: pypdf extracts text pages, python-docx reads Word files, and Pandas converts tabular CSV/XLSX rows into text key-value lists.
+* Text Chunking: document strings segment into 1000-character chunks advancing by 800 characters to form a 200-character sliding overlap.
+* Resilient Embeddings: sentence-transformers/all-MiniLM-L6-v2 runs via HuggingFace API, falling back offline to local deterministic SHA-256 vectors.
+* Tabular Profiling: Pandas classifies schemas, checks row/column counts, exposes nulls and duplicates, calculates statistics, and prompts LLMs.
+* Conversational RAG: embeds queries, searches ChromaDB for the top 3 chunks, and builds a strict markdown prompt specifying analytical rules.
+* Conversational Memory: reads active PostgreSQL thread lists and restricts context payloads strictly to the last 10 chat messages.
+* Data Cleansing: winsorization detects outlier values using the IQR method [Q1 - 1.5 * IQR, Q3 + 1.5 * IQR] and clips numerical spikes.
+* Forecasting Agent: models chronological series using ARIMA(1, 1, 1), falling back to a Scikit-Learn linear regression trend-line if fit fails.
+* Linear Regression CI: prediction +/- 1.96 * standard_error where standard_error is the standard deviation of historical residuals.
+* Client-Side SVG: maps numerical arrays directly to 800x480 coordinate nodes, drawing paths and shapes dynamically styled by React.
+* PDF Report Compiler: ReportLab Platypus appends document flowables and tables to assemble print-ready executive PDFs from analysis logs.
+================================================================================
