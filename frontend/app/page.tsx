@@ -738,10 +738,9 @@ export default function WorkspacePage() {
     }
   };
 
-  // Ingest Document upload with progress simulation
-  const handleUpload = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!file) return;
+  // Generic upload handler
+  const uploadFile = async (selectedFile: File) => {
+    if (!selectedFile) return;
 
     setIsUploading(true);
     setIngestionStep(0);
@@ -753,7 +752,7 @@ export default function WorkspacePage() {
     }, 1800);
 
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append("file", selectedFile);
 
     try {
       const response = await fetch(getApiUrl("/api/v1/documents/upload"), {
@@ -769,7 +768,6 @@ export default function WorkspacePage() {
         throw new Error(errData.detail || "Failed to parse document pipeline.");
       }
 
-      setFile(null);
       setStatusMsg("SUCCESS: File parsed, chunks computed, and indexes generated inside ChromaDB store!");
       await loadWorkspaceData();
     } catch (err: any) {
@@ -778,6 +776,14 @@ export default function WorkspacePage() {
     } finally {
       setIsUploading(false);
     }
+  };
+
+  // Ingest Document upload with progress simulation
+  const handleUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!file) return;
+    await uploadFile(file);
+    setFile(null);
   };
 
   // Delete Document
@@ -4599,13 +4605,58 @@ export default function WorkspacePage() {
                                   )}
                                 </div>
                               ))}
+                              {isUploading && (
+                                <div className="flex flex-col gap-1 max-w-[90%] self-start items-start animate-pulse">
+                                  <span className="text-[9px] font-bold tracking-widest uppercase text-muted font-mono">
+                                    INGESTION AGENT
+                                  </span>
+                                  <div className="p-md rounded-lg text-caption leading-relaxed shadow-subtle border bg-[#fcf8f2] text-ink border-hairline-soft w-full sm:w-[320px]">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span className="text-[11px] font-bold uppercase tracking-wider text-muted">Parsing Document...</span>
+                                      <span className="text-xs font-bold text-ink">{Math.round(((ingestionStep + 1) / ingestionProgressLog.length) * 100)}%</span>
+                                    </div>
+                                    <div className="w-full bg-[#f1f3f5] h-1.5 rounded-full overflow-hidden mb-2">
+                                      <div 
+                                        className="bg-ink h-full transition-all duration-500"
+                                        style={{ width: `${((ingestionStep + 1) / ingestionProgressLog.length) * 100}%` }}
+                                      ></div>
+                                    </div>
+                                    <p className="text-[10px] text-muted font-mono m-0 leading-relaxed">
+                                      &bull; {ingestionProgressLog[ingestionStep]}
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
                               <div ref={messagesEndRef} />
                             </>
                           )}
                         </div>
 
                         {/* Input message form */}
-                        <form onSubmit={(e) => handleSendMessage(e)} className="flex gap-sm">
+                        <form onSubmit={(e) => handleSendMessage(e)} className="flex gap-sm items-center">
+                          <input
+                            id="chat-file-upload-input"
+                            type="file"
+                            onChange={async (e) => {
+                              if (e.target.files && e.target.files[0]) {
+                                await uploadFile(e.target.files[0]);
+                                e.target.value = "";
+                              }
+                            }}
+                            accept=".txt,.pdf,.docx,.doc,.csv,.xlsx,.xls"
+                            className="hidden"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => document.getElementById("chat-file-upload-input")?.click()}
+                            disabled={isSending || isUploading}
+                            className="p-2.5 border border-hairline hover:bg-[#f5e9d4] hover:border-ink rounded-md text-muted hover:text-ink transition-all cursor-pointer flex-shrink-0"
+                            title="Attach and ingest file"
+                          >
+                            <svg viewBox="0 0 24 24" className="w-5 h-5 stroke-current fill-none" strokeWidth="2">
+                              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                            </svg>
+                          </button>
                           <input
                             type="text"
                             value={inputText}
@@ -4613,11 +4664,11 @@ export default function WorkspacePage() {
                             placeholder={`Ask analyst about dataset values...`}
                             className="flex-grow bg-canvas text-ink border border-hairline rounded-md px-4 py-2.5 text-caption focus:border-ink outline-none"
                             required
-                            disabled={isSending}
+                            disabled={isSending || isUploading}
                           />
                           <button
                             type="submit"
-                            disabled={isSending || !inputText.trim()}
+                            disabled={isSending || isUploading || !inputText.trim()}
                             className="btn-primary w-[110px] h-[40px] flex items-center justify-center text-xs font-semibold py-0 px-2"
                           >
                             {isSending ? "Querying..." : "Ask Agent"}
