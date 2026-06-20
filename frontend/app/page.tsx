@@ -1068,6 +1068,66 @@ export default function WorkspacePage() {
     }
   };
 
+  // Ultimate full workspace reset
+  const handleUltimateReset = async () => {
+    if (!confirm("WARNING: Are you sure you want to trigger the ultimate workspace reset? This will delete all uploaded datasets, purge all semantic indices from ChromaDB, remove compiled PDF briefs, and reset all workstation configuration controls!")) {
+      return;
+    }
+
+    setStatusMsg("RESETTING WORKSPACE... PURGING DATA STAGINGS AND INDICES...");
+
+    try {
+      const headers = getAuthHeaders();
+
+      // 1. Delete all documents from DB & filesystem & ChromaDB
+      for (const doc of documents) {
+        await fetch(getApiUrl(`/api/v1/documents/${doc.id}`), {
+          method: "DELETE",
+          headers,
+        });
+      }
+
+      // 2. Delete all reports from DB & filesystem
+      for (const report of reports) {
+        await fetch(getApiUrl(`/api/v1/reports/${report.id}`), {
+          method: "DELETE",
+          headers,
+        });
+      }
+
+      // 3. Clear all react state
+      setSelectedDoc(null);
+      setSelectedDocId("");
+      setTargetColumn("");
+      setDateColumn("");
+      setForecastSteps(12);
+      setCleanOutliers(true);
+      setChartTheme("darkgrid");
+      setChartPalette("deep");
+      setChartType("line");
+      setShowCI(true);
+      setShowMarkers(true);
+      setShowTrendLine(false);
+      setShowMovingAverage(false);
+      setMovingAveragePeriod(3);
+      setShowMinMax(false);
+      setMessages([]);
+      setConversations([]);
+      setRuns([]);
+      setReports([]);
+      setSelectedRun(null);
+      setReportTitle("");
+      setSelectedAnalysisId("");
+      
+      // Reload workspace
+      await loadWorkspaceData();
+      
+      setStatusMsg("SUCCESS: Ultimate Workspace Reset Completed successfully. All stagings, indices, brief records, and settings have been cleared!");
+    } catch (err: any) {
+      setStatusMsg(`ERROR: Reset failed partially: ${err.message || err}`);
+    }
+  };
+
   // Export simulation data to CSV
   const handleExportCSV = (config: ChartConfig) => {
     try {
@@ -3425,16 +3485,28 @@ export default function WorkspacePage() {
     <div className="flex flex-col gap-lg bg-canvas text-ink">
       
       {/* 1. Quietly Editorial Main Header Section */}
-      <div className="border-b border-hairline pb-xl">
-        <span className="text-caption text-brand-accent uppercase font-bold tracking-widest block mb-1">
-          Unified Analytics Workspace
-        </span>
-        <h1 className="text-display-lg md:text-display-xl text-ink font-cal m-0 leading-tight">
-          Data Analyst Workstation
-        </h1>
-        <p className="text-body-md text-muted max-w-3xl mt-sm leading-relaxed m-0">
-          Scrub spreadsheet datasets, query RAG vector knowledge bases, simulate projections, and download executive briefs in one synchronized, local interface.
-        </p>
+      <div className="border-b border-hairline pb-xl flex flex-col md:flex-row md:justify-between md:items-end gap-md">
+        <div>
+          <span className="text-caption text-brand-accent uppercase font-bold tracking-widest block mb-1">
+            Unified Analytics Workspace
+          </span>
+          <h1 className="text-display-lg md:text-display-xl text-ink font-cal m-0 leading-tight">
+            Data Analyst Workstation
+          </h1>
+          <p className="text-body-md text-muted max-w-3xl mt-sm leading-relaxed m-0">
+            Scrub spreadsheet datasets, query RAG vector knowledge bases, simulate projections, and download executive briefs in one synchronized, local interface.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={handleUltimateReset}
+          className="btn-secondary text-[#aa2d00] hover:text-white hover:bg-error hover:border-error py-2.5 px-4 rounded-md text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 self-start md:self-end cursor-pointer border border-[#f5d0c0] bg-[#fff9f6] transition-colors"
+        >
+          <svg viewBox="0 0 24 24" className="w-4 h-4 fill-none stroke-current" strokeWidth="2.5">
+            <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+          Ultimate Reset
+        </button>
       </div>
 
       {statusMsg && (
