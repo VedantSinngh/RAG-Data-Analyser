@@ -391,10 +391,17 @@ export default function WorkspacePage() {
   const [reportTitle, setReportTitle] = useState("");
   const [isCompiling, setIsCompiling] = useState(false);
   const [selectedAnalysisId, setSelectedAnalysisId] = useState("");
+  const [includeChart, setIncludeChart] = useState(true);
+  const [includeMetrics, setIncludeMetrics] = useState(true);
+  const [includeLogs, setIncludeLogs] = useState(true);
+  const [isChartModalOpen, setIsChartModalOpen] = useState(false);
 
   const [statusMsg, setStatusMsg] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const urlChecked = useRef(false);
+
+  // Chat fullscreen state
+  const [isFullScreen, setIsFullScreen] = useState(false);
 
   // Load initial workspace registry logs
   const loadWorkspaceData = useCallback(async () => {
@@ -1005,6 +1012,9 @@ export default function WorkspacePage() {
         body: JSON.stringify({
           analysis_id: selectedAnalysisId,
           title: reportTitle.trim(),
+          include_chart: includeChart,
+          include_metrics: includeMetrics,
+          include_logs: includeLogs,
         }),
       });
 
@@ -3843,6 +3853,13 @@ export default function WorkspacePage() {
                               <p className="text-[11px] font-mono text-ink m-0 leading-relaxed animate-pulse">
                                 &bull; {analysisProgressLog[analysisStep]}
                               </p>
+                              <button
+                                type="button"
+                                onClick={() => setIsAnalyzing(false)}
+                                className="btn-secondary py-1 text-xs font-semibold mt-2 w-full flex items-center justify-center gap-1"
+                              >
+                                &larr; Back &amp; Edit Settings
+                              </button>
                             </div>
                           ) : (
                             <form onSubmit={handleRunForecast} className="flex flex-col gap-md">
@@ -4279,12 +4296,48 @@ export default function WorkspacePage() {
                             {/* SVG Chart display */}
                             {selectedRun.chart?.config && (
                               <div className="flex flex-col gap-2">
-                                <span className="text-[10px] text-muted font-bold tracking-widest uppercase">
-                                  Simulation Chart // {selectedRun.chart.config.method}
-                                </span>
-                                <div className="border border-hairline p-md rounded-md bg-canvas">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-[10px] text-muted font-bold tracking-widest uppercase">
+                                    Simulation Chart // {selectedRun.chart.config.method}
+                                  </span>
+                                  <button
+                                    onClick={() => setIsChartModalOpen(true)}
+                                    className="p-1 hover:bg-surface-soft border border-hairline rounded text-muted hover:text-ink transition-all cursor-pointer flex items-center gap-1 text-[11px] font-semibold"
+                                    title="Enlarge Chart"
+                                  >
+                                    <svg viewBox="0 0 24 24" className="w-4 h-4 stroke-current fill-none" strokeWidth="2.5">
+                                      <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                                    </svg>
+                                    Enlarge
+                                  </button>
+                                </div>
+                                <div className="border border-hairline p-md rounded-md bg-canvas transition-all duration-300 hover:scale-[1.01] hover:shadow-md">
                                   {renderSVGChart(selectedRun.chart.config)}
                                 </div>
+
+                                {/* Enlarge Modal */}
+                                {isChartModalOpen && (
+                                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 md:p-8 animate-fade-in">
+                                    <div className="bg-canvas border border-hairline rounded-lg p-6 max-w-5xl w-full flex flex-col gap-4 shadow-2xl relative">
+                                      <div className="flex justify-between items-center border-b border-hairline pb-3">
+                                        <h3 className="text-title-md font-cal text-ink m-0">
+                                          Enlarged Visualization: {selectedRun.query}
+                                        </h3>
+                                        <button 
+                                          onClick={() => setIsChartModalOpen(false)}
+                                          className="p-1.5 rounded-full hover:bg-surface-soft text-muted hover:text-ink transition-colors border border-hairline cursor-pointer"
+                                        >
+                                          <svg viewBox="0 0 24 24" className="w-5 h-5 stroke-current fill-none" strokeWidth="2">
+                                            <path d="M18 6L6 18M6 6l12 12" />
+                                          </svg>
+                                        </button>
+                                      </div>
+                                      <div className="border border-hairline p-4 rounded bg-canvas flex justify-center items-center overflow-auto max-h-[70vh]">
+                                        {renderSVGChart(selectedRun.chart.config)}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
                                 {/* Simple Chart explanation banner */}
                                 <div className="border border-hairline p-md bg-[#fafbfc] rounded-md flex gap-md items-start">
                                   <div className="w-5 h-5 bg-ink rounded-md flex items-center justify-center flex-shrink-0 text-white font-bold text-xs mt-0.5">i</div>
@@ -4381,356 +4434,399 @@ export default function WorkspacePage() {
 
                 {/* 3. INTERACTIVE CONVERSATIONAL RAG TAB */}
                 {activeTab === "chat" && (
-                  <div className="grid grid-cols-12 gap-gutter h-[620px] bg-canvas overflow-hidden">
-                    
-                    {/* Left Pane: Chat Threads & Focus (3/12 columns) */}
-                    <div className="col-span-3 border-r border-hairline pr-md flex flex-col justify-between h-full overflow-hidden">
-                      <div className="flex flex-col h-full overflow-hidden">
-                        <div className="flex justify-between items-center pb-sm border-b border-hairline mb-sm">
-                          <h3 className="text-title-sm text-ink font-cal m-0">Conversations</h3>
-                          <button
-                            onClick={handleCreateConversation}
-                            className="bg-transparent hover:bg-surface-soft text-link hover:text-link-active text-xs font-semibold py-1 px-2 border border-hairline rounded transition-colors"
-                          >
-                            + New Thread
-                          </button>
+                  <div className={
+                    isFullScreen 
+                      ? "fixed inset-0 z-50 bg-canvas text-ink p-8 flex flex-col h-screen max-h-screen overflow-hidden backdrop-blur-md animate-fade-in"
+                      : "grid grid-cols-12 gap-gutter h-[620px] bg-canvas overflow-hidden"
+                  }>
+                    {/* Fullscreen Close / Header Overlay in Fullscreen mode */}
+                    {isFullScreen && (
+                      <div className="flex justify-between items-center border-b border-hairline pb-4 mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse"></div>
+                          <h2 className="text-title-lg font-cal font-bold m-0 tracking-tight">Unified Analyst Terminal</h2>
                         </div>
-                        
-                        {/* Threads List */}
-                        <div className="flex-grow overflow-y-auto space-y-1.5 pr-xs">
-                          {conversations.length === 0 ? (
-                            <div className="text-center py-8 text-caption text-muted">
-                              No active threads
-                            </div>
-                          ) : (
-                            conversations.map((conv) => {
-                              const isActive = activeConvId === conv.id;
-                              return (
-                                <button
-                                  key={conv.id}
-                                  onClick={() => handleSelectConversation(conv.id)}
-                                  className={`w-full text-left p-2.5 rounded-lg border text-caption transition-all block ${
-                                    isActive
-                                      ? "bg-surface-soft border-hairline text-ink font-semibold shadow-subtle"
-                                      : "bg-canvas border-transparent text-muted hover:bg-surface-soft hover:text-ink"
-                                  }`}
-                                >
-                                  <div className="truncate pr-sm">
-                                    {conv.preview || `Thread ${conv.id.slice(0, 8)}`}
-                                  </div>
-                                  <div className="text-[10px] text-muted font-mono mt-1">
-                                    {new Date(conv.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                  </div>
-                                </button>
-                              );
-                            })
-                          )}
-                        </div>
-                      </div>
-
-                      {/* RAG Context Focus */}
-                      <div className="border-t border-hairline pt-sm mt-sm bg-canvas">
-                        <span className="text-[10px] text-muted font-bold tracking-wider uppercase block">RAG Context Focus</span>
-                        <select
-                          value={selectedDocId}
-                          onChange={(e) => setSelectedDocId(e.target.value)}
-                          className="w-full bg-canvas text-ink border border-hairline px-3 py-2 text-caption font-semibold rounded-md mt-1 focus:border-ink outline-none"
-                        >
-                          <option value="">Query Entire Index</option>
-                          {documents.map((d) => (
-                            <option key={d.id} value={d.id}>
-                              Only {d.filename}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    {/* Middle Pane: Chat Workspace (6/12 columns) */}
-                    <div className="col-span-6 flex flex-col justify-between h-full px-sm overflow-hidden border-r border-hairline pr-md">
-                      
-                      {/* Active Conversation header */}
-                      <div className="border-b border-hairline pb-xs mb-sm flex justify-between items-center">
-                        <div>
-                          <span className="text-[11px] text-muted font-bold tracking-wider uppercase block">RAG Conversational Node</span>
-                          <span className="text-caption text-ink font-semibold">
-                            {activeConvId ? `Active Session: ${activeConvId.slice(0, 8)}` : "Select or Start a Session"}
-                          </span>
-                        </div>
-                        {isSending && (
-                          <span className="text-[10px] font-mono text-link animate-pulse font-bold">AGENTS COLLABORATING...</span>
-                        )}
-                      </div>
-
-                      {/* Message Log */}
-                      <div className="flex-grow p-sm overflow-y-auto flex flex-col gap-md border border-hairline rounded-md bg-[#fafbfc] mb-sm">
-                        {messages.length === 0 ? (
-                          <div className="text-center py-20 flex flex-col justify-center items-center h-full">
-                            <span className="text-title-sm text-muted font-cal block mb-1">
-                              Conversational RAG Node Active
-                            </span>
-                            <p className="text-caption text-muted m-0 max-w-sm">
-                              Query the vector store. Ask questions about columns, structures, correlations, or topics.
-                            </p>
-                          </div>
-                        ) : (
-                          <>
-                            {messages.map((msg, i) => (
-                              <div
-                                key={i}
-                                className={`flex flex-col gap-1 max-w-[90%] ${
-                                  msg.role === "user" ? "self-end items-end" : "self-start items-start"
-                                }`}
-                              >
-                                <span className="text-[9px] font-bold tracking-widest uppercase text-muted font-mono">
-                                  {msg.role === "user" ? "USER" : "DATA ANALYST AGENT"}
-                                </span>
-                                <div
-                                  className={`p-md rounded-lg text-caption leading-relaxed shadow-subtle border ${
-                                    msg.role === "user"
-                                      ? "bg-canvas text-ink border-hairline font-sans"
-                                      : "bg-surface-soft text-ink border-hairline-soft font-sans"
-                                  }`}
-                                >
-                                  {renderMessageContent(msg.content)}
-                                </div>
-                                {msg.role === "assistant" && msg.sources && msg.sources.length > 0 && (
-                                  <div className="flex flex-wrap gap-1 mt-1 items-center">
-                                    <span className="text-[9px] tracking-wider uppercase text-muted mr-1 font-semibold">Citations:</span>
-                                    {msg.sources.map((src, sIdx) => (
-                                      <span key={sIdx} className="text-[9px] font-bold bg-[#fcf0eb] text-[#aa2d00] px-2 py-0.5 rounded-sm border border-[#fcf0eb]">
-                                        {src.filename} (chunk {src.chunk_index + 1})
-                                      </span>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                            <div ref={messagesEndRef} />
-                          </>
-                        )}
-                      </div>
-
-                      {/* Input message form */}
-                      <form onSubmit={(e) => handleSendMessage(e)} className="flex gap-sm">
-                        <input
-                          type="text"
-                          value={inputText}
-                          onChange={(e) => setInputText(e.target.value)}
-                          placeholder={`Ask analyst about dataset values...`}
-                          className="flex-grow bg-canvas text-ink border border-hairline rounded-md px-4 py-2.5 text-caption focus:border-ink outline-none"
-                          required
-                          disabled={isSending}
-                        />
                         <button
-                          type="submit"
-                          disabled={isSending || !inputText.trim()}
-                          className="btn-primary w-[110px] h-[40px] flex items-center justify-center text-xs font-semibold py-0 px-2"
+                          onClick={() => setIsFullScreen(false)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 border border-hairline rounded-md hover:bg-surface-soft font-semibold text-xs transition-all text-ink cursor-pointer"
                         >
-                          {isSending ? "Querying..." : "Ask Agent"}
+                          <svg viewBox="0 0 24 24" className="w-4 h-4 stroke-current fill-none" strokeWidth="2.5">
+                            <path d="M4 14h6v6m10-6h-6v6M4 10h6V4m10 6h-6V4" />
+                          </svg>
+                          Minimize Dashboard
                         </button>
-                      </form>
-
-                    </div>
-
-                    {/* Right Pane: Synced Tools (3/12 columns) */}
-                    <div className="col-span-3 flex flex-col gap-md h-full pl-xs overflow-y-auto">
-                      
-                      {/* Section 1: Forecast Sync Tool */}
-                      <div className="border border-hairline rounded-lg p-sm bg-[#fafbfc] flex flex-col gap-xs">
-                        <div className="flex items-center justify-between border-b border-hairline pb-xs">
-                          <span className="text-[10px] text-ink font-bold tracking-wider uppercase">Forecast Integration</span>
-                          <span className={`w-2 h-2 rounded-full ${selectedRun ? "bg-green-500" : "bg-[#9297a0]"}`}></span>
-                        </div>
-
-                        {runs.length > 0 ? (
-                          <div className="space-y-sm mt-xs">
-                            <div>
-                              <label className="text-[10px] text-muted font-bold block mb-1">Active Forecast Run:</label>
-                              <select
-                                value={selectedRun?.id || ""}
-                                onChange={(e) => {
-                                  if (e.target.value) handleSelectRun(e.target.value);
-                                }}
-                                className="w-full bg-canvas text-ink border border-hairline px-2 py-1 text-caption font-semibold rounded focus:border-ink outline-none"
-                              >
-                                <option value="">Select a run to sync...</option>
-                                {runs.map((r) => (
-                                  <option key={r.id} value={r.id}>
-                                    {r.query.length > 20 ? r.query.slice(0, 20) + "..." : r.query} ({r.status})
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-
-                            {selectedRun && (
-                              <div className="bg-canvas border border-hairline p-xs rounded text-[11px] space-y-1 font-mono text-muted">
-                                <div><span className="font-semibold text-ink">Method:</span> {selectedRun.result_metadata?.method || "ARIMA"}</div>
-                                <div><span className="font-semibold text-ink">Target:</span> {selectedRun.result_metadata?.target_column || "Value"}</div>
-                                <div><span className="font-semibold text-ink">Horizon:</span> {selectedRun.chart?.config?.forecast_values?.length ?? 12} steps</div>
-                              </div>
-                            )}
-
-                            {selectedRun && (
-                              <div className="grid grid-cols-2 gap-xs">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const prompt = `Summarize the forecasting metrics, parameters, and findings for the simulation run "${selectedRun.query}".`;
-                                    setInputText(prompt);
-                                    handleSendMessage(null as any, prompt);
-                                  }}
-                                  className="w-full bg-[#f8fafc] hover:bg-[#e0e2e6] border border-hairline text-ink py-1 px-1.5 rounded text-[10px] font-semibold text-center transition-colors"
-                                >
-                                  Explain Model
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const prompt = `Explain the detailed projections, confidence margins (upper and lower bounds) for the forecast run "${selectedRun.query}".`;
-                                    setInputText(prompt);
-                                    handleSendMessage(null as any, prompt);
-                                  }}
-                                  className="w-full bg-[#f8fafc] hover:bg-[#e0e2e6] border border-hairline text-ink py-1 px-1.5 rounded text-[10px] font-semibold text-center transition-colors"
-                                >
-                                  Analyze Projections
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        ) : (
-                          <p className="text-[11px] text-muted m-0 mt-xs">No active forecasting runs available in this workspace.</p>
-                        )}
                       </div>
+                    )}
 
-                      {/* Section 2: Data Schema & Column Scanner */}
-                      <div className="border border-hairline rounded-lg p-sm bg-[#fafbfc] flex flex-col gap-xs">
-                        <div className="flex items-center justify-between border-b border-hairline pb-xs">
-                          <span className="text-[10px] text-ink font-bold tracking-wider uppercase">Column Scanner</span>
-                          {selectedDoc?.metadata?.is_tabular && (
-                            <span className="text-[10px] font-mono font-bold bg-[#fcf0eb] text-[#aa2d00] px-1 rounded">TABULAR</span>
-                          )}
-                        </div>
-
-                        {selectedDoc?.metadata?.columns ? (
-                          <div className="space-y-sm mt-xs">
-                            <span className="text-[10px] text-muted block">Select a column to generate quick analytical prompt:</span>
-                            <div className="flex flex-wrap gap-xs max-h-[120px] overflow-y-auto border border-hairline p-xs rounded bg-canvas pr-xs">
-                              {selectedDoc.metadata.columns.map((col: string) => {
-                                const type = selectedDoc.metadata.column_types?.[col] || "unknown";
-                                const isNum = type.toLowerCase().includes("int") || type.toLowerCase().includes("float") || type.toLowerCase().includes("num");
+                    <div className={isFullScreen ? "grid grid-cols-12 gap-gutter flex-grow h-[calc(100vh-120px)] overflow-hidden" : "contents"}>
+                      {/* Left Pane: Chat Threads & Focus */}
+                      <div className={`${
+                        isFullScreen ? "col-span-3" : "col-span-3 border-r"
+                      } border-hairline pr-md flex flex-col justify-between h-full overflow-hidden`}>
+                        <div className="flex flex-col h-full overflow-hidden">
+                          <div className="flex justify-between items-center pb-sm border-b border-hairline mb-sm">
+                            <h3 className="text-title-sm text-ink font-cal m-0">Conversations</h3>
+                            <button
+                              onClick={handleCreateConversation}
+                              className="bg-transparent hover:bg-surface-soft text-link hover:text-link-active text-xs font-semibold py-1 px-2 border border-hairline rounded transition-colors"
+                            >
+                              + New Thread
+                            </button>
+                          </div>
+                          
+                          {/* Threads List */}
+                          <div className="flex-grow overflow-y-auto space-y-1.5 pr-xs">
+                            {conversations.length === 0 ? (
+                              <div className="text-center py-8 text-caption text-muted">
+                                No active threads
+                              </div>
+                            ) : (
+                              conversations.map((conv) => {
+                                const isActive = activeConvId === conv.id;
                                 return (
                                   <button
-                                    key={col}
-                                    type="button"
-                                    onClick={() => {
-                                      // Pre-fill action triggers for this column
-                                      const prompt = `Analyze column "${col}" from the current dataset. Show its basic stats, check for anomalies, and explain what we can learn from it.`;
-                                      setInputText(prompt);
-                                    }}
-                                    className="inline-flex items-center gap-1 text-[10.5px] font-semibold bg-canvas hover:bg-surface-soft border border-hairline rounded px-1.5 py-0.5 transition-colors text-ink select-none"
+                                    key={conv.id}
+                                    onClick={() => handleSelectConversation(conv.id)}
+                                    className={`w-full text-left p-2.5 rounded-lg border text-caption transition-all block ${
+                                      isActive
+                                        ? "bg-surface-soft border-hairline text-ink font-semibold shadow-subtle"
+                                        : "bg-canvas border-transparent text-muted hover:bg-surface-soft hover:text-ink"
+                                    }`}
                                   >
-                                    <span className="truncate max-w-[80px]">{col}</span>
-                                    <span className={`text-[8px] font-mono px-0.5 rounded ${isNum ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"}`}>
-                                      {isNum ? "num" : "str"}
-                                    </span>
+                                    <div className="truncate pr-sm">
+                                      {conv.preview || `Thread ${conv.id.slice(0, 8)}`}
+                                    </div>
+                                    <div className="text-[10px] text-muted font-mono mt-1">
+                                      {new Date(conv.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                    </div>
                                   </button>
                                 );
-                              })}
-                            </div>
-
-                            <div className="grid grid-cols-3 gap-xs">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const text = inputText.trim() || `Provide a detailed statistical summary of the column structure in the dataset.`;
-                                  setInputText(text);
-                                  handleSendMessage(null as any, text);
-                                }}
-                                className="bg-[#f8fafc] hover:bg-[#e0e2e6] border border-hairline text-ink py-1 px-1 rounded text-[9px] font-semibold text-center transition-colors"
-                              >
-                                Stats Summary
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const text = inputText.trim() || `Run an outlier analysis across all columns to find anomalous records.`;
-                                  setInputText(text);
-                                  handleSendMessage(null as any, text);
-                                }}
-                                className="bg-[#f8fafc] hover:bg-[#e0e2e6] border border-hairline text-ink py-1 px-1 rounded text-[9px] font-semibold text-center transition-colors"
-                              >
-                                Outlier Check
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const text = inputText.trim() || `Perform correlation analysis between numeric columns of the dataset.`;
-                                  setInputText(text);
-                                  handleSendMessage(null as any, text);
-                                }}
-                                className="bg-[#f8fafc] hover:bg-[#e0e2e6] border border-hairline text-ink py-1 px-1 rounded text-[9px] font-semibold text-center transition-colors"
-                              >
-                                Correlations
-                              </button>
-                            </div>
+                              })
+                            )}
                           </div>
-                        ) : (
-                          <p className="text-[11px] text-muted m-0 mt-xs">No active dataset selected. Load a file to scan columns.</p>
-                        )}
-                      </div>
+                        </div>
 
-                      {/* Section 3: Analyst Shortcuts */}
-                      <div className="border border-hairline rounded-lg p-sm bg-[#fafbfc] flex flex-col gap-xs">
-                        <span className="text-[10px] text-ink font-bold tracking-wider uppercase border-b border-hairline pb-xs">Analyst Shortcuts</span>
-                        <div className="grid grid-cols-2 gap-xs mt-xs">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const text = "Explain any data quality issues, null values, or anomalies in the active dataset.";
-                              setInputText(text);
-                              handleSendMessage(null as any, text);
-                            }}
-                            className="bg-canvas hover:bg-surface-soft border border-hairline text-ink text-[10px] font-semibold py-1.5 px-2 rounded text-left transition-colors"
+                        {/* RAG Context Focus */}
+                        <div className="border-t border-hairline pt-sm mt-sm bg-canvas">
+                          <span className="text-[10px] text-muted font-bold tracking-wider uppercase block">RAG Context Focus</span>
+                          <select
+                            value={selectedDocId}
+                            onChange={(e) => setSelectedDocId(e.target.value)}
+                            className="w-full bg-canvas text-ink border border-hairline px-3 py-2 text-caption font-semibold rounded-md mt-1 focus:border-ink outline-none"
                           >
-                            💡 Clean Data
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const text = "Create a brief summary highlighting the three most important trends in this dataset.";
-                              setInputText(text);
-                              handleSendMessage(null as any, text);
-                            }}
-                            className="bg-canvas hover:bg-surface-soft border border-hairline text-ink text-[10px] font-semibold py-1.5 px-2 rounded text-left transition-colors"
-                          >
-                            📈 Key Trends
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const text = "Evaluate all numerical values and explain the correlation matrix of this spreadsheet.";
-                              setInputText(text);
-                              handleSendMessage(null as any, text);
-                            }}
-                            className="bg-canvas hover:bg-surface-soft border border-hairline text-ink text-[10px] font-semibold py-1.5 px-2 rounded text-left transition-colors"
-                          >
-                            📊 Correlations
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const text = "Compile an executive brief summarizing the core findings, variables, and potential forecast models for this data.";
-                              setInputText(text);
-                              handleSendMessage(null as any, text);
-                            }}
-                            className="bg-canvas hover:bg-surface-soft border border-hairline text-ink text-[10px] font-semibold py-1.5 px-2 rounded text-left transition-colors"
-                          >
-                            📝 Executive Brief
-                          </button>
+                            <option value="">Query Entire Index</option>
+                            {documents.map((d) => (
+                              <option key={d.id} value={d.id}>
+                                Only {d.filename}
+                              </option>
+                            ))}
+                          </select>
                         </div>
                       </div>
 
+                      {/* Middle Pane: Chat Workspace */}
+                      <div className={`${
+                        isFullScreen ? "col-span-6" : "col-span-9"
+                      } flex flex-col justify-between h-full px-sm overflow-hidden border-hairline pr-md`}>
+                        
+                        {/* Active Conversation header */}
+                        <div className="border-b border-hairline pb-xs mb-sm flex justify-between items-center">
+                          <div>
+                            <span className="text-[11px] text-muted font-bold tracking-wider uppercase block">RAG Conversational Node</span>
+                            <span className="text-caption text-ink font-semibold">
+                              {activeConvId ? `Active Session: ${activeConvId.slice(0, 8)}` : "Select or Start a Session"}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            {isSending && (
+                              <span className="text-[10px] font-mono text-link animate-pulse font-bold">AGENTS COLLABORATING...</span>
+                            )}
+                            {!isFullScreen && (
+                              <button
+                                onClick={() => setIsFullScreen(true)}
+                                className="p-1.5 border border-hairline hover:bg-surface-soft rounded text-muted hover:text-ink transition-all cursor-pointer"
+                                title="Show full screen dashboard"
+                              >
+                                <svg viewBox="0 0 24 24" className="w-4 h-4 stroke-current fill-none" strokeWidth="2.5">
+                                  <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Message Log */}
+                        <div className="flex-grow p-sm overflow-y-auto flex flex-col gap-md border border-hairline rounded-md bg-[#fafbfc] mb-sm">
+                          {messages.length === 0 ? (
+                            <div className="text-center py-20 flex flex-col justify-center items-center h-full">
+                              <span className="text-title-sm text-muted font-cal block mb-1">
+                                Conversational RAG Node Active
+                              </span>
+                              <p className="text-caption text-muted m-0 max-w-sm">
+                                Query the vector store. Ask questions about columns, structures, correlations, or topics.
+                              </p>
+                            </div>
+                          ) : (
+                            <>
+                              {messages.map((msg, i) => (
+                                <div
+                                  key={i}
+                                  className={`flex flex-col gap-1 max-w-[90%] ${
+                                    msg.role === "user" ? "self-end items-end" : "self-start items-start"
+                                  }`}
+                                >
+                                  <span className="text-[9px] font-bold tracking-widest uppercase text-muted font-mono">
+                                    {msg.role === "user" ? "USER" : "DATA ANALYST AGENT"}
+                                  </span>
+                                  <div
+                                    className={`p-md rounded-lg text-caption leading-relaxed shadow-subtle border ${
+                                      msg.role === "user"
+                                        ? "bg-canvas text-ink border-hairline font-sans"
+                                        : "bg-surface-soft text-ink border-hairline-soft font-sans"
+                                    }`}
+                                  >
+                                    {renderMessageContent(msg.content)}
+                                  </div>
+                                  {msg.role === "assistant" && msg.sources && msg.sources.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mt-1 items-center">
+                                      <span className="text-[9px] tracking-wider uppercase text-muted mr-1 font-semibold">Citations:</span>
+                                      {msg.sources.map((src, sIdx) => (
+                                        <span key={sIdx} className="text-[9px] font-bold bg-[#fcf0eb] text-[#aa2d00] px-2 py-0.5 rounded-sm border border-[#fcf0eb]">
+                                          {src.filename} (chunk {src.chunk_index + 1})
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                              <div ref={messagesEndRef} />
+                            </>
+                          )}
+                        </div>
+
+                        {/* Input message form */}
+                        <form onSubmit={(e) => handleSendMessage(e)} className="flex gap-sm">
+                          <input
+                            type="text"
+                            value={inputText}
+                            onChange={(e) => setInputText(e.target.value)}
+                            placeholder={`Ask analyst about dataset values...`}
+                            className="flex-grow bg-canvas text-ink border border-hairline rounded-md px-4 py-2.5 text-caption focus:border-ink outline-none"
+                            required
+                            disabled={isSending}
+                          />
+                          <button
+                            type="submit"
+                            disabled={isSending || !inputText.trim()}
+                            className="btn-primary w-[110px] h-[40px] flex items-center justify-center text-xs font-semibold py-0 px-2"
+                          >
+                            {isSending ? "Querying..." : "Ask Agent"}
+                          </button>
+                        </form>
+
+                      </div>
+
+                      {/* Right Pane: Synced Tools */}
+                      {isFullScreen && (
+                        <div className="col-span-3 flex flex-col gap-md h-full pl-xs overflow-y-auto">
+                        
+                        {/* Section 1: Forecast Sync Tool */}
+                        <div className="border border-hairline rounded-lg p-sm bg-[#fafbfc] flex flex-col gap-xs">
+                          <div className="flex items-center justify-between border-b border-hairline pb-xs">
+                            <span className="text-[10px] text-ink font-bold tracking-wider uppercase">Forecast Integration</span>
+                            <span className={`w-2 h-2 rounded-full ${selectedRun ? "bg-green-500" : "bg-[#9297a0]"}`}></span>
+                          </div>
+
+                          {runs.length > 0 ? (
+                            <div className="space-y-sm mt-xs">
+                              <div>
+                                <label className="text-[10px] text-muted font-bold block mb-1">Active Forecast Run:</label>
+                                <select
+                                  value={selectedRun?.id || ""}
+                                  onChange={(e) => {
+                                    if (e.target.value) handleSelectRun(e.target.value);
+                                  }}
+                                  className="w-full bg-canvas text-ink border border-hairline px-2 py-1 text-caption font-semibold rounded focus:border-ink outline-none"
+                                >
+                                  <option value="">Select a run to sync...</option>
+                                  {runs.map((r) => (
+                                    <option key={r.id} value={r.id}>
+                                      {r.query.length > 20 ? r.query.slice(0, 20) + "..." : r.query} ({r.status})
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              {selectedRun && (
+                                <div className="bg-canvas border border-hairline p-xs rounded text-[11px] space-y-1 font-mono text-muted">
+                                  <div><span className="font-semibold text-ink">Method:</span> {selectedRun.result_metadata?.method || "ARIMA"}</div>
+                                  <div><span className="font-semibold text-ink">Target:</span> {selectedRun.result_metadata?.target_column || "Value"}</div>
+                                  <div><span className="font-semibold text-ink">Horizon:</span> {selectedRun.chart?.config?.forecast_values?.length ?? 12} steps</div>
+                                </div>
+                              )}
+
+                              {selectedRun && (
+                                <div className="grid grid-cols-2 gap-xs">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const prompt = `Summarize the forecasting metrics, parameters, and findings for the simulation run "${selectedRun.query}".`;
+                                      setInputText(prompt);
+                                      handleSendMessage(null as any, prompt);
+                                    }}
+                                    className="w-full bg-[#f8fafc] hover:bg-[#e0e2e6] border border-hairline text-ink py-1 px-1.5 rounded text-[10px] font-semibold text-center transition-colors"
+                                  >
+                                    Explain Model
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const prompt = `Explain the detailed projections, confidence margins (upper and lower bounds) for the forecast run "${selectedRun.query}".`;
+                                      setInputText(prompt);
+                                      handleSendMessage(null as any, prompt);
+                                    }}
+                                    className="w-full bg-[#f8fafc] hover:bg-[#e0e2e6] border border-hairline text-ink py-1 px-1.5 rounded text-[10px] font-semibold text-center transition-colors"
+                                  >
+                                    Analyze Projections
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="text-[11px] text-muted m-0 mt-xs">No active forecasting runs available in this workspace.</p>
+                          )}
+                        </div>
+
+                        {/* Section 2: Data Schema & Column Scanner */}
+                        <div className="border border-hairline rounded-lg p-sm bg-[#fafbfc] flex flex-col gap-xs">
+                          <div className="flex items-center justify-between border-b border-hairline pb-xs">
+                            <span className="text-[10px] text-ink font-bold tracking-wider uppercase">Column Scanner</span>
+                            {selectedDoc?.metadata?.is_tabular && (
+                              <span className="text-[10px] font-mono font-bold bg-[#fcf0eb] text-[#aa2d00] px-1 rounded">TABULAR</span>
+                            )}
+                          </div>
+
+                          {selectedDoc?.metadata?.columns ? (
+                            <div className="space-y-sm mt-xs">
+                              <span className="text-[10px] text-muted block">Select a column to generate quick analytical prompt:</span>
+                              <div className="flex flex-wrap gap-xs max-h-[120px] overflow-y-auto border border-hairline p-xs rounded bg-canvas pr-xs">
+                                {selectedDoc.metadata.columns.map((col: string) => {
+                                  const type = selectedDoc.metadata.column_types?.[col] || "unknown";
+                                  const isNum = type.toLowerCase().includes("int") || type.toLowerCase().includes("float") || type.toLowerCase().includes("num");
+                                  return (
+                                    <button
+                                      key={col}
+                                      type="button"
+                                      onClick={() => {
+                                        // Pre-fill action triggers for this column
+                                        const prompt = `Analyze column "${col}" from the current dataset. Show its basic stats, check for anomalies, and explain what we can learn from it.`;
+                                        setInputText(prompt);
+                                      }}
+                                      className="inline-flex items-center gap-1 text-[10.5px] font-semibold bg-canvas hover:bg-surface-soft border border-hairline rounded px-1.5 py-0.5 transition-colors text-ink select-none"
+                                    >
+                                      <span className="truncate max-w-[80px]">{col}</span>
+                                      <span className={`text-[8px] font-mono px-0.5 rounded ${isNum ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"}`}>
+                                        {isNum ? "num" : "str"}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+
+                              <div className="grid grid-cols-3 gap-xs">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const text = inputText.trim() || `Provide a detailed statistical summary of the column structure in the dataset.`;
+                                    setInputText(text);
+                                    handleSendMessage(null as any, text);
+                                  }}
+                                  className="bg-[#f8fafc] hover:bg-[#e0e2e6] border border-hairline text-ink py-1 px-1 rounded text-[9px] font-semibold text-center transition-colors"
+                                >
+                                  Stats Summary
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const text = inputText.trim() || `Run an outlier analysis across all columns to find anomalous records.`;
+                                    setInputText(text);
+                                    handleSendMessage(null as any, text);
+                                  }}
+                                  className="bg-[#f8fafc] hover:bg-[#e0e2e6] border border-hairline text-ink py-1 px-1 rounded text-[9px] font-semibold text-center transition-colors"
+                                >
+                                  Outlier Check
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const text = inputText.trim() || `Perform correlation analysis between numeric columns of the dataset.`;
+                                    setInputText(text);
+                                    handleSendMessage(null as any, text);
+                                  }}
+                                  className="bg-[#f8fafc] hover:bg-[#e0e2e6] border border-hairline text-ink py-1 px-1 rounded text-[9px] font-semibold text-center transition-colors"
+                                >
+                                  Correlations
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-[11px] text-muted m-0 mt-xs">No active dataset selected. Load a file to scan columns.</p>
+                          )}
+                        </div>
+
+                        {/* Section 3: Analyst Shortcuts */}
+                        <div className="border border-hairline rounded-lg p-sm bg-[#fafbfc] flex flex-col gap-xs">
+                          <span className="text-[10px] text-ink font-bold tracking-wider uppercase border-b border-hairline pb-xs">Analyst Shortcuts</span>
+                          <div className="grid grid-cols-2 gap-xs mt-xs">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const text = "Explain any data quality issues, null values, or anomalies in the active dataset.";
+                                setInputText(text);
+                                handleSendMessage(null as any, text);
+                              }}
+                              className="bg-canvas hover:bg-surface-soft border border-hairline text-ink text-[10px] font-semibold py-1.5 px-2 rounded text-left transition-colors"
+                            >
+                              💡 Clean Data
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const text = "Create a brief summary highlighting the three most important trends in this dataset.";
+                                setInputText(text);
+                                handleSendMessage(null as any, text);
+                              }}
+                              className="bg-canvas hover:bg-surface-soft border border-hairline text-ink text-[10px] font-semibold py-1.5 px-2 rounded text-left transition-colors"
+                            >
+                              📈 Key Trends
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const text = "Evaluate all numerical values and explain the correlation matrix of this spreadsheet.";
+                                setInputText(text);
+                                handleSendMessage(null as any, text);
+                              }}
+                              className="bg-canvas hover:bg-surface-soft border border-hairline text-ink text-[10px] font-semibold py-1.5 px-2 rounded text-left transition-colors"
+                            >
+                              📊 Correlations
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const text = "Compile an executive brief summarizing the core findings, variables, and potential forecast models for this data.";
+                                setInputText(text);
+                                handleSendMessage(null as any, text);
+                              }}
+                              className="bg-canvas hover:bg-surface-soft border border-hairline text-ink text-[10px] font-semibold py-1.5 px-2 rounded text-left transition-colors"
+                            >
+                              📝 Executive Brief
+                            </button>
+                          </div>
+                        </div>
+
+                      </div>
+                      )}
                     </div>
 
                   </div>
@@ -4790,6 +4886,52 @@ export default function WorkspacePage() {
                               className="bg-canvas text-ink border border-hairline px-3 py-1.5 text-caption rounded-md focus:border-ink outline-none"
                               required
                             />
+                          </div>
+
+                          {/* Report sections selector */}
+                          <div className="flex flex-col gap-2 pt-1 border-t border-hairline">
+                            <span className="text-[11px] text-ink font-bold uppercase tracking-wide block mb-1">
+                              Included Sections (Formal Style)
+                            </span>
+                            
+                            <div className="flex items-center gap-xs">
+                              <input
+                                id="inc-chart-check"
+                                type="checkbox"
+                                checked={includeChart}
+                                onChange={(e) => setIncludeChart(e.target.checked)}
+                                className="w-4 h-4 border border-hairline bg-canvas rounded-sm accent-black cursor-pointer"
+                              />
+                              <label htmlFor="inc-chart-check" className="text-caption text-ink font-semibold select-none cursor-pointer">
+                                Include Visual Trendline Graph
+                              </label>
+                            </div>
+
+                            <div className="flex items-center gap-xs">
+                              <input
+                                id="inc-metrics-check"
+                                type="checkbox"
+                                checked={includeMetrics}
+                                onChange={(e) => setIncludeMetrics(e.target.checked)}
+                                className="w-4 h-4 border border-hairline bg-canvas rounded-sm accent-black cursor-pointer"
+                              />
+                              <label htmlFor="inc-metrics-check" className="text-caption text-ink font-semibold select-none cursor-pointer">
+                                Include Observed Data Table
+                              </label>
+                            </div>
+
+                            <div className="flex items-center gap-xs">
+                              <input
+                                id="inc-logs-check"
+                                type="checkbox"
+                                checked={includeLogs}
+                                onChange={(e) => setIncludeLogs(e.target.checked)}
+                                className="w-4 h-4 border border-hairline bg-canvas rounded-sm accent-black cursor-pointer"
+                              />
+                              <label htmlFor="inc-logs-check" className="text-caption text-ink font-semibold select-none cursor-pointer">
+                                Include Agent Audit Logs
+                              </label>
+                            </div>
                           </div>
 
                           <button

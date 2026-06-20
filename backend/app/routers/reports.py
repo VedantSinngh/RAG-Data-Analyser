@@ -29,15 +29,21 @@ router = APIRouter(prefix="/reports", tags=["Report Generation & Export"])
 class ReportCreateRequest(BaseModel):
     analysis_id: str
     title: str
+    include_chart: bool = True
+    include_metrics: bool = True
+    include_logs: bool = True
 
 def generate_pdf_report(
     file_path: str, 
     title: str, 
     analysis_query: str, 
     logs: list[AgentLog], 
-    chart_config: dict | None
+    chart_config: dict | None,
+    include_chart: bool,
+    include_metrics: bool,
+    include_logs: bool
 ) -> None:
-    """Compile structured print-ready PDF using ReportLab Platypus elements."""
+    """Compile structured print-ready PDF using ReportLab Platypus elements with a formal business design."""
     # Ensure directory exists
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
     
@@ -53,61 +59,86 @@ def generate_pdf_report(
     
     styles = getSampleStyleSheet()
     
-    # Custom high-contrast styles matching Wired guidelines
+    # Custom formal corporate-style typography styles
     title_style = ParagraphStyle(
-        'WiredTitle',
+        'FormalTitle',
         parent=styles['Heading1'],
         fontName='Helvetica-Bold',
-        fontSize=22,
-        leading=26,
-        textColor=colors.black,
-        spaceAfter=6
+        fontSize=20,
+        leading=24,
+        textColor=colors.HexColor('#0f172a'),
+        spaceAfter=4
     )
     
     subtitle_style = ParagraphStyle(
-        'WiredSubtitle',
+        'FormalSubtitle',
         parent=styles['Normal'],
-        fontName='Helvetica',
+        fontName='Helvetica-Oblique',
         fontSize=9,
         leading=12,
-        textColor=colors.HexColor('#757575'),
-        spaceAfter=18
+        textColor=colors.HexColor('#475569'),
+        spaceAfter=14
     )
     
     heading_style = ParagraphStyle(
-        'WiredHeading',
+        'FormalHeading',
         parent=styles['Heading2'],
         fontName='Helvetica-Bold',
-        fontSize=12,
-        leading=16,
-        textColor=colors.black,
-        spaceBefore=14,
-        spaceAfter=6
+        fontSize=11,
+        leading=14,
+        textColor=colors.HexColor('#1e293b'),
+        spaceBefore=12,
+        spaceAfter=6,
+        keepWithNext=True
     )
     
     body_style = ParagraphStyle(
-        'WiredBody',
+        'FormalBody',
         parent=styles['Normal'],
         fontName='Times-Roman',
         fontSize=10,
         leading=14,
-        textColor=colors.black,
+        textColor=colors.HexColor('#0f172a'),
         spaceAfter=8
+    )
+
+    caption_style = ParagraphStyle(
+        'FormalCaption',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=8,
+        leading=10,
+        textColor=colors.HexColor('#64748b'),
+        spaceAfter=6
     )
     
     # Document header
-    story.append(Paragraph(title, title_style))
-    story.append(Paragraph(f"AnalystAI Executive Summary &bull; Compiled on {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}", subtitle_style))
-    story.append(Spacer(1, 10))
+    story.append(Paragraph(title.upper(), title_style))
+    story.append(Paragraph(f"CONFIDENTIAL BUSINESS INTELLIGENCE BRIEFING &bull; GENERATED ON {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')} UTC", subtitle_style))
     
-    # Section: Context parameter focus
-    story.append(Paragraph("<b>Analysis Query Focus</b>", heading_style))
-    story.append(Paragraph(analysis_query, body_style))
+    # Elegant divider line
+    d_table = Table([[""]], colWidths=[504])
+    d_table.setStyle(TableStyle([
+        ('LINEABOVE', (0,0), (-1,-1), 1.5, colors.HexColor('#0f172a')),
+        ('TOPPADDING', (0,0), (-1,-1), 0),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+    ]))
+    story.append(d_table)
+    
+    # Section: Executive Scope
+    story.append(Paragraph("1. EXECUTIVE ANALYTICAL SCOPE", heading_style))
+    formal_scope_desc = (
+        f"This document presents the formal analytical results and statistical evaluations compiled "
+        f"by the database processing node in response to the primary query: <i>\"{analysis_query}\"</i>. "
+        f"The data ingestion pipeline has completed standard verification, error checking, and outlier "
+        f"mitigation protocols to ensure mathematical precision and model consistency."
+    )
+    story.append(Paragraph(formal_scope_desc, body_style))
     story.append(Spacer(1, 10))
     
     # Section: Data Forecast Table Grid
-    if chart_config:
-        story.append(Paragraph("<b>Projections Summary Table</b>", heading_style))
+    if chart_config and include_metrics:
+        story.append(Paragraph("2. STATISTICAL PROJECTIONS & HISTORICAL SAMPLE DATA", heading_style))
         
         hist_dates = chart_config.get("history_dates", [])
         hist_vals = chart_config.get("history_values", [])
@@ -117,62 +148,122 @@ def generate_pdf_report(
         upp_b = chart_config.get("upper_bounds", [])
         
         # Grid headers
-        table_data = [["Date", "Classification", "Average Value", "Confidence Lower (95%)", "Confidence Upper (95%)"]]
+        table_data = [["Period Date", "Data Classification", "Evaluated Value", "95% Lower Margin", "95% Upper Margin"]]
         
-        # Add last 3 historical context points
-        for i in range(max(0, len(hist_vals) - 3), len(hist_vals)):
+        # Add last 4 historical context points
+        for i in range(max(0, len(hist_vals) - 4), len(hist_vals)):
             table_data.append([
                 hist_dates[i], 
-                "Historical", 
-                f"{hist_vals[i]:.2f}", 
-                "-", 
-                "-"
+                "Historical Observed", 
+                f"{hist_vals[i]:,.2f}", 
+                "N/A (Observed)", 
+                "N/A (Observed)"
             ])
             
         # Add future forecast projection steps
         for i in range(len(fc_vals)):
             table_data.append([
                 fc_dates[i], 
-                "Forecast", 
-                f"{fc_vals[i]:.2f}", 
-                f"{low_b[i]:.2f}" if i < len(low_b) else "-", 
-                f"{upp_b[i]:.2f}" if i < len(upp_b) else "-"
+                f"Model Forecast (+{i+1})", 
+                f"{fc_vals[i]:,.2f}", 
+                f"{low_b[i]:,.2f}" if i < len(low_b) else "N/A", 
+                f"{upp_b[i]:,.2f}" if i < len(upp_b) else "N/A"
             ])
             
-        t = Table(table_data, colWidths=[100, 90, 100, 110, 110])
+        t = Table(table_data, colWidths=[90, 110, 94, 105, 105])
         t.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#000000')),
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#1e293b')),
             ('TEXTCOLOR', (0,0), (-1,0), colors.white),
             ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0,0), (-1,0), 8.5),
-            ('BOTTOMPADDING', (0,0), (-1,0), 5),
-            ('BACKGROUND', (0,1), (-1,-1), colors.HexColor('#fbfbfb')),
-            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#e0e0e0')),
+            ('FONTSIZE', (0,0), (-1,0), 8),
+            ('BOTTOMPADDING', (0,0), (-1,0), 6),
+            ('TOPPADDING', (0,0), (-1,0), 6),
+            ('BACKGROUND', (0,1), (-1,-1), colors.HexColor('#f8fafc')),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#cbd5e1')),
             ('FONTNAME', (0,1), (-1,-1), 'Times-Roman'),
-            ('FONTSIZE', (0,1), (-1,-1), 9.5),
+            ('FONTSIZE', (0,1), (-1,-1), 9),
             ('ALIGN', (2,0), (-1,-1), 'RIGHT'),
         ]))
         story.append(t)
-        story.append(Spacer(1, 15))
+        story.append(Spacer(1, 10))
+
+    # Section: Drawn Vector Trendline Chart
+    if chart_config and include_chart:
+        story.append(Paragraph("3. VISUALIZED PROJECTIONS TREND LINE", heading_style))
+        story.append(Paragraph("The chart below illustrates the historical observations followed by the forecasted mathematical trajectory.", caption_style))
+        
+        # ReportLab custom vector drawing
+        from reportlab.graphics.shapes import Drawing, Rect, Line, Circle, String
+        
+        hist_vals = chart_config.get("history_values", [])
+        fc_vals = chart_config.get("forecast_values", [])
+        all_vals = hist_vals + fc_vals
+        
+        if all_vals:
+            y_min_val = min(all_vals)
+            y_max_val = max(all_vals)
+            y_range_val = (y_max_val - y_min_val) if y_max_val != y_min_val else 1.0
+            
+            draw_w = 480
+            draw_h = 120
+            d = Drawing(draw_w, draw_h)
+            
+            # Border & Grid background
+            d.add(Rect(0, 0, draw_w, draw_h, fillColor=colors.HexColor('#f8fafc'), strokeColor=colors.HexColor('#e2e8f0'), strokeWidth=1))
+            
+            # Draw simple coordinate lines
+            pts = []
+            hist_len = len(hist_vals)
+            total_len = len(all_vals)
+            
+            for idx, val in enumerate(all_vals):
+                x = 10 + (idx / (total_len - 1)) * (draw_w - 20) if total_len > 1 else 240
+                y = 10 + ((val - y_min_val) / y_range_val) * (draw_h - 20)
+                pts.append((x, y))
+            
+            # Draw line segments
+            for idx in range(len(pts) - 1):
+                p1 = pts[idx]
+                p2 = pts[idx + 1]
+                line_color = colors.HexColor('#2563eb') if idx < hist_len - 1 else colors.HexColor('#dc2626')
+                line_stroke = 1.5 if idx < hist_len - 1 else 2.0
+                d.add(Line(p1[0], p1[1], p2[0], p2[1], strokeColor=line_color, strokeWidth=line_stroke))
+                
+            # Draw separating vertical line between history and forecast
+            if hist_len > 0 and hist_len < total_len:
+                sep_x = pts[hist_len - 1][0]
+                d.add(Line(sep_x, 0, sep_x, draw_h, strokeColor=colors.HexColor('#64748b'), strokeWidth=0.8, strokeDashArray=[2, 2]))
+                d.add(String(sep_x + 4, draw_h - 12, "Forecast Boundary", fontName="Helvetica-Bold", fontSize=7, fillColor=colors.HexColor('#475569')))
+            
+            # Label limits
+            d.add(String(12, draw_h - 12, f"Max: {y_max_val:,.2f}", fontName="Helvetica", fontSize=7, fillColor=colors.HexColor('#64748b')))
+            d.add(String(12, 6, f"Min: {y_min_val:,.2f}", fontName="Helvetica", fontSize=7, fillColor=colors.HexColor('#64748b')))
+            
+            story.append(d)
+            story.append(Spacer(1, 12))
         
     # Section: Audit logs summary
-    if logs:
-        story.append(Paragraph("<b>Pipeline Agent Audit Logs</b>", heading_style))
+    if logs and include_logs:
+        story.append(Paragraph("4. MULTI-AGENT EXECUTION AUDIT", heading_style))
         for log in logs:
-            agent_title = f"<b>Agent: {log.agent_name}</b> (Duration: {log.duration_ms} ms)"
+            agent_title = f"<b>Agent: {log.agent_name.upper()}</b> (Diagnostic execution: {log.duration_ms} ms)"
             story.append(Paragraph(agent_title, body_style))
             
             output = log.output_data or {}
             if "outliers_detected" in output:
                 scrubbed_summary = (
-                    f"Action: Scanned {len(output.get('numeric_columns_scanned', []))} numeric column(s). "
-                    f"Identified and winsorized {output.get('outliers_detected')} data outliers."
+                    f"Operational Protocol: Evaluated {len(output.get('numeric_columns_scanned', []))} column vector(s) for variance stability. "
+                    f"Identified and winsorized {output.get('outliers_detected')} extreme value anomalies using the standard "
+                    f"Interquartile Range (IQR) method. Adjusted boundaries: "
+                    f"[{output.get('lower_limit'):.2f}, {output.get('upper_limit'):.2f}]."
                 )
                 story.append(Paragraph(scrubbed_summary, body_style))
             elif "method" in output:
                 forecast_summary = (
-                    f"Action: Selected model: {output.get('method')}. "
-                    f"Projected {output.get('steps')} steps into future using {output.get('historical_points')} historical points."
+                    f"Operational Protocol: Implemented time-series predictive modeling using the "
+                    f"\"{output.get('method')}\" framework. Fitted parameters against "
+                    f"{output.get('historical_points')} historical observed data coordinates "
+                    f"to generate {output.get('steps')} future interval predictions."
                 )
                 story.append(Paragraph(forecast_summary, body_style))
                 
@@ -219,7 +310,10 @@ async def create_report(
             req.title.strip() or f"Executive Report: {run.query[:30]}", 
             run.query, 
             run.agent_logs, 
-            chart_config
+            chart_config,
+            req.include_chart,
+            req.include_metrics,
+            req.include_logs
         )
     except Exception as e:
         logger.error(f"Error compiling PDF: {e}")

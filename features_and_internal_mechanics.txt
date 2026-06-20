@@ -1,0 +1,56 @@
+ANALYSTAI (RAG-DATA-ANALYSER) - FEATURES AND INTERNAL MECHANICS
+
+1. MULTI-FORMAT DOCUMENT INGESTION PIPELINE
+- What it does:
+  Allows users to upload unstructured text documents (.pdf, .docx, .txt) and structured tabular datasets (.csv, .xlsx).
+- How it works internally:
+  * File Reception: FastAPI receives the file upload via multipart/form-data.
+  * Unstructured Files: PDF files are parsed using 'pypdf' to extract raw text page-by-page. DOCX files are parsed with 'python-docx' to read paragraphs and tables. Standard TXT files are decoded directly.
+  * Tabular Files: CSV and Excel spreadsheets are parsed using Pandas into DataFrames. Row data is converted into key-value descriptions (e.g., mapping columns to values for each record) to prepare the structured data for vectorization.
+  * Chunking: The extracted text is split using a sliding-window chunker with a chunk size of 1,000 characters and a 200-character overlap to preserve semantic continuity across splits.
+
+2. HYBRID VECTOR STORAGE & RESILIENT EMBEDDING GENERATION
+- What it does:
+  Generates vector embeddings for all document chunks and stores them in a vector database for similarity search.
+- How it works internally:
+  * Embedding Pipeline: The backend attempts to generate 384-dimensional vector embeddings using HuggingFace's Inference API (specifically using the 'sentence-transformers/all-MiniLM-L6-v2' model).
+  * Fail-Safe Fallback: If the internet connection is down or the HuggingFace API key is missing, the system falls back to a custom, local deterministic SHA-256 hash vector generator. This splits the hash space into a 384-dimension numerical representation, preventing database insertion failures.
+  * ChromaDB Insertion: Chunks are stored in ChromaDB using collection-level separation filtered by owner ID. The relational database (PostgreSQL via SQLAlchemy) stores document metadata, including processing state, row count, and page count.
+
+3. CONVERSATIONAL RETRIEVAL-AUGMENTED GENERATION (RAG)
+- What it does:
+  Allows users to ask natural language questions about their uploaded files.
+- How it works internally:
+  * Prompt & Query Vectorization: When a user sends a query, the query is converted into a vector embedding using the same embedding pipeline (HuggingFace API or the fallback hash generator).
+  * Context Retrieval: The system performs a similarity search in ChromaDB, retrieving the top 3 most relevant context chunks matching the query, scoped strictly to the current user's document permissions.
+  * LLM Completions: The retrieved chunks are injected into a highly constrained system prompt along with the chat history. This prompt is sent to the Groq API (running models like Llama-3.3-70b) to generate a contextually grounded response.
+
+4. AUTOMATED DATA CLEANSING & OUTLIER DETECTION AGENTS
+- What it does:
+  Cleans numeric data columns and handles outliers to stabilize analytical models.
+- How it works internally:
+  * Data Profiling: A dedicated Pandas agent profiles numeric fields to compute standard statistics (Mean, Median, Standard Deviation, Interquartile Range).
+  * Winsorization Process: To prevent extreme values from distorting regressions and ARIMA models without losing entire rows of data, the agent identifies outliers by computing the IQR boundaries: [Q1 - 1.5 * IQR, Q3 + 1.5 * IQR]. Values lying outside these bounds are clipped (winsorized) to the boundary limits.
+
+5. ADVANCED TIME-SERIES FORECASTING & RESILIENT FALLBACKS
+- What it does:
+  Forecasts chronological trend lines into future periods with confidence intervals.
+- How it works internally:
+  * Chronology Sorting: The agent extracts the date/time column and target numeric variable, parsing them into standard timestamp indexes.
+  * ARIMA Modeling: It fits an Autoregressive Integrated Moving Average ARIMA(1,1,1) model using the 'statsmodels' library to predict future periods along with a 95% confidence interval.
+  * Regression Fallback: If the ARIMA model fails to converge (e.g., due to insufficient data points, extreme sparsity, or non-stationary patterns), the agent automatically catches the exception and falls back to a Linear Regression model. It calculates confidence intervals based on the standard deviation of residuals.
+
+6. DYNAMIC CLIENT-SIDE SVG CHARTING
+- What it does:
+  Renders interactive data charts directly in the browser.
+- How it works internally:
+  * Custom React Engine: Instead of heavy third-party canvas libraries, a custom React component maps the analytical endpoints' JSON output directly onto standard SVG paths and shapes in an 800x480 container.
+  * Theme Support: The SVG charts dynamically shift styles based on the client configuration (Classic, Cyberpunk, Dark Mode) and support instant export to SVG or CSV.
+
+7. EXECUTIVE REPORT GENERATOR
+- What it does:
+  Compiles statistical data, charts, and forecasts into a print-ready PDF executive summary.
+- How it works internally:
+  * PDF Generation: Uses Python's 'ReportLab' library to programmatically draw and compile the output.
+  * Layout Engine: It translates the data cleansing audit logs, regression formulas, and tabular forecast figures into flowables.
+  * PDF Assembly: The compiled PDF document is saved to the local workspace disk (`backend/uploads/reports`) and a download URL is returned to the frontend.
