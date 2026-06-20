@@ -2684,7 +2684,7 @@ export default function WorkspacePage() {
             
             return (
               <g>
-                <polygon points={envelopePath} fill={colors.ci} fillOpacity="0.18" stroke="none" />
+                <path d={envelopePath} fill={colors.ci} fillOpacity="0.18" stroke="none" />
                 <path d={`M ${ptsUpper.join(" L ")}`} fill="none" stroke={colors.ci} strokeWidth="1" strokeDasharray="3 3" />
                 <path d={`M ${ptsLower.reverse().join(" L ")}`} fill="none" stroke={colors.ci} strokeWidth="1" strokeDasharray="3 3" />
                 <path d={`M ${ptsMA.join(" L ")}`} fill="none" stroke={colors.ma} strokeWidth="2.2" />
@@ -3042,13 +3042,13 @@ export default function WorkspacePage() {
             )}
 
             {chartType === "area" && (
-              <polygon points={`${leftMargin},${height - bottomMargin} ${historyPoints.join(" ")} ${width - rightMargin},${height - bottomMargin} Z`} fill={colors.history} fillOpacity="0.25" stroke={colors.history} strokeWidth="2.5" />
+              <polygon points={`${leftMargin},${height - bottomMargin} ${historyPoints.join(" ")} ${width - rightMargin},${height - bottomMargin}`} fill={colors.history} fillOpacity="0.25" stroke={colors.history} strokeWidth="2.5" />
             )}
 
             {chartType === "stacked_area" && (
               <g>
-                <polygon points={`${leftMargin},${height - bottomMargin} ${history_values.map((v, i) => `${getX(i)},${getY(v * 0.5)}`).join(" ")} ${width - rightMargin},${height - bottomMargin} Z`} fill={colors.trend} fillOpacity="0.45" stroke={colors.trend} strokeWidth="1.5" />
-                <polygon points={`${leftMargin},${height - bottomMargin} ${history_values.map((v, i) => `${getX(i)},${getY(v * 1.2)}`).join(" ")} ${width - rightMargin},${height - bottomMargin} Z`} fill={colors.history} fillOpacity="0.3" stroke={colors.history} strokeWidth="2" />
+                <polygon points={`${leftMargin},${height - bottomMargin} ${history_values.map((v, i) => `${getX(i)},${getY(v * 0.5)}`).join(" ")} ${width - rightMargin},${height - bottomMargin}`} fill={colors.trend} fillOpacity="0.45" stroke={colors.trend} strokeWidth="1.5" />
+                <polygon points={`${leftMargin},${height - bottomMargin} ${history_values.map((v, i) => `${getX(i)},${getY(v * 1.2)}`).join(" ")} ${width - rightMargin},${height - bottomMargin}`} fill={colors.history} fillOpacity="0.3" stroke={colors.history} strokeWidth="2" />
               </g>
             )}
           </>
