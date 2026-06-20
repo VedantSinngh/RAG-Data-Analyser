@@ -395,6 +395,13 @@ export default function WorkspacePage() {
   const [includeMetrics, setIncludeMetrics] = useState(true);
   const [includeLogs, setIncludeLogs] = useState(true);
   const [isChartModalOpen, setIsChartModalOpen] = useState(false);
+  const [hoveredPoint, setHoveredPoint] = useState<{
+    x: number;
+    y: number;
+    date: string;
+    value: number;
+    type: string;
+  } | null>(null);
 
   const [statusMsg, setStatusMsg] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -3054,6 +3061,9 @@ export default function WorkspacePage() {
                       fillOpacity={isCyber ? "0.7" : "0.8"}
                       stroke={isCyber ? colors.history : "none"}
                       strokeWidth={isCyber ? "1" : "0"}
+                      className="cursor-pointer transition-all duration-150 hover:fill-opacity-100 hover:stroke-black hover:stroke-1"
+                      onMouseEnter={() => setHoveredPoint({ x: x + barWidth / 2, y: topY, date: config.history_dates[idx] || "", value: val, type: "Historical" })}
+                      onMouseLeave={() => setHoveredPoint(null)}
                     >
                       <title>Date: {config.history_dates[idx]}&#10;Value: {val.toLocaleString()}&#10;Type: Historical</title>
                     </rect>
@@ -3077,6 +3087,9 @@ export default function WorkspacePage() {
                       stroke={colors.forecast}
                       strokeWidth="1"
                       strokeDasharray="3 2"
+                      className="cursor-pointer transition-all duration-150 hover:fill-opacity-80 hover:stroke-black hover:stroke-1"
+                      onMouseEnter={() => setHoveredPoint({ x: x + barWidth / 2, y: topY, date: config.forecast_dates[idx] || "", value: val, type: "Forecast Projection" })}
+                      onMouseLeave={() => setHoveredPoint(null)}
                     >
                       <title>Date: {config.forecast_dates[idx]}&#10;Value: {val.toLocaleString()}&#10;Type: Forecast Projection</title>
                     </rect>
@@ -3121,6 +3134,9 @@ export default function WorkspacePage() {
                     stroke={isCyber || isDark ? "#ffffff" : "#1e293b"} 
                     strokeWidth="1.2"
                     filter={isCyber ? "url(#cyber-glow)" : undefined} 
+                    className="cursor-pointer transition-all duration-150 hover:r-[7px] hover:stroke-black"
+                    onMouseEnter={() => setHoveredPoint({ x: cx5, y: cy5, date: config.history_dates[idx] || "", value: val, type: "Historical" })}
+                    onMouseLeave={() => setHoveredPoint(null)}
                   >
                     <title>Date: {config.history_dates[idx]}&#10;Value: {val.toLocaleString()}</title>
                   </circle>
@@ -3146,6 +3162,9 @@ export default function WorkspacePage() {
                     stroke={isCyber || isDark ? "#ffffff" : "#1e293b"} 
                     strokeWidth="1.2"
                     filter={isCyber ? "url(#cyber-glow)" : undefined} 
+                    className="cursor-pointer transition-all duration-150 hover:r-[7px] hover:stroke-black"
+                    onMouseEnter={() => setHoveredPoint({ x: cx5, y: cy5, date: config.forecast_dates[idx] || "", value: val, type: "Forecast Projection" })}
+                    onMouseLeave={() => setHoveredPoint(null)}
                   >
                     <title>Date: {config.forecast_dates[idx]}&#10;Value: {val.toLocaleString()}</title>
                   </circle>
@@ -3263,7 +3282,10 @@ export default function WorkspacePage() {
                   r="3.5" 
                   fill={colors.history} 
                   stroke="#ffffff" 
-                  strokeWidth="1" 
+                  strokeWidth="1"
+                  className="cursor-pointer transition-all duration-150 hover:r-[6px] hover:stroke-black"
+                  onMouseEnter={() => setHoveredPoint({ x: cx5, y: cy5, date: config.history_dates[idx] || "", value: val, type: "Historical" })}
+                  onMouseLeave={() => setHoveredPoint(null)}
                 >
                   <title>Date: {config.history_dates[idx]}&#10;Value: {val.toLocaleString()}&#10;Type: Historical</title>
                 </circle>
@@ -3280,7 +3302,10 @@ export default function WorkspacePage() {
                   r="3.5" 
                   fill={colors.forecast} 
                   stroke="#ffffff" 
-                  strokeWidth="1" 
+                  strokeWidth="1"
+                  className="cursor-pointer transition-all duration-150 hover:r-[6px] hover:stroke-black"
+                  onMouseEnter={() => setHoveredPoint({ x: cx5, y: cy5, date: config.forecast_dates[idx] || "", value: val, type: "Forecast Projection" })}
+                  onMouseLeave={() => setHoveredPoint(null)}
                 >
                   <title>Date: {config.forecast_dates[idx]}&#10;Value: {val.toLocaleString()}&#10;Type: Forecast</title>
                 </circle>
@@ -3882,7 +3907,18 @@ export default function WorkspacePage() {
                                   required
                                 >
                                   <option value="">-- Choose Column --</option>
-                                  {selectedDoc.metadata?.columns?.map((c: string) => (
+                                  {selectedDoc.metadata?.columns?.filter((c: string) => {
+                                    const colType = selectedDoc.metadata?.column_types?.[c] || "";
+                                    const nameLower = c.toLowerCase();
+                                    return colType === "datetime" || 
+                                           nameLower.includes("date") || 
+                                           nameLower.includes("time") || 
+                                           nameLower.includes("year") || 
+                                           nameLower.includes("month") || 
+                                           nameLower.includes("day") || 
+                                           nameLower.includes("timestamp") || 
+                                           nameLower.includes("dt");
+                                  }).map((c: string) => (
                                     <option key={c} value={c}>{c}</option>
                                   ))}
                                 </select>
@@ -3900,7 +3936,10 @@ export default function WorkspacePage() {
                                   required
                                 >
                                   <option value="">-- Choose Column --</option>
-                                  {selectedDoc.metadata?.columns?.map((c: string) => (
+                                  {selectedDoc.metadata?.columns?.filter((c: string) => {
+                                    const colType = selectedDoc.metadata?.column_types?.[c] || "";
+                                    return colType === "numeric";
+                                  }).map((c: string) => (
                                     <option key={c} value={c}>{c}</option>
                                   ))}
                                 </select>
@@ -4317,8 +4356,23 @@ export default function WorkspacePage() {
                                     Enlarge
                                   </button>
                                 </div>
-                                <div className="border border-hairline p-md rounded-md bg-canvas transition-all duration-300 hover:scale-[1.01] hover:shadow-md">
+                                <div className="border border-hairline p-md rounded-md bg-canvas transition-all duration-300 hover:scale-[1.01] hover:shadow-md relative">
                                   {renderSVGChart(selectedRun.chart.config)}
+                                  {hoveredPoint && (
+                                    <div 
+                                      className="absolute pointer-events-none bg-slate-900 text-white text-[11px] px-2.5 py-1.5 rounded shadow-lg border border-slate-700/50 flex flex-col gap-0.5 z-50 -translate-x-1/2 -translate-y-full -mt-3 transition-opacity duration-150 animate-fade-in font-sans"
+                                      style={{
+                                        left: `${(hoveredPoint.x / 800) * 100}%`,
+                                        top: `${(hoveredPoint.y / 480) * 100}%`,
+                                      }}
+                                    >
+                                      <div className="flex gap-2 items-center justify-between">
+                                        <span className="font-bold text-[9px] uppercase tracking-wider text-slate-400">{hoveredPoint.type}</span>
+                                        <span className="font-mono text-sky-400 text-[10px]">{hoveredPoint.date}</span>
+                                      </div>
+                                      <span className="font-bold font-mono text-[12px] text-white">Value: {hoveredPoint.value.toLocaleString()}</span>
+                                    </div>
+                                  )}
                                 </div>
 
                                 {/* Enlarge Modal */}
@@ -4338,8 +4392,23 @@ export default function WorkspacePage() {
                                           </svg>
                                         </button>
                                       </div>
-                                      <div className="border border-hairline p-4 rounded bg-canvas flex justify-center items-center overflow-auto max-h-[70vh]">
+                                      <div className="border border-hairline p-4 rounded bg-canvas flex justify-center items-center overflow-auto max-h-[70vh] relative w-full">
                                         {renderSVGChart(selectedRun.chart.config)}
+                                        {hoveredPoint && (
+                                          <div 
+                                            className="absolute pointer-events-none bg-slate-900 text-white text-[11px] px-2.5 py-1.5 rounded shadow-lg border border-slate-700/50 flex flex-col gap-0.5 z-50 -translate-x-1/2 -translate-y-full -mt-3 transition-opacity duration-150 animate-fade-in font-sans"
+                                            style={{
+                                              left: `${(hoveredPoint.x / 800) * 100}%`,
+                                              top: `${(hoveredPoint.y / 480) * 100}%`,
+                                            }}
+                                          >
+                                            <div className="flex gap-2 items-center justify-between">
+                                              <span className="font-bold text-[9px] uppercase tracking-wider text-slate-400">{hoveredPoint.type}</span>
+                                              <span className="font-mono text-sky-400 text-[10px]">{hoveredPoint.date}</span>
+                                            </div>
+                                            <span className="font-bold font-mono text-[12px] text-white">Value: {hoveredPoint.value.toLocaleString()}</span>
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
                                   </div>
