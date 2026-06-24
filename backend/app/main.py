@@ -11,8 +11,8 @@ from app.routers import auth, documents, analysis, chat, reports
 async def lifespan(app: FastAPI):
     # Startup actions
     import os
-    os.makedirs("/app/uploads", exist_ok=True)
-    os.makedirs("/app/uploads/reports", exist_ok=True)
+    os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+    os.makedirs(settings.REPORTS_DIR, exist_ok=True)
     async with engine.begin() as conn:
         # Create all tables on startup if they don't exist
         await conn.run_sync(Base.metadata.create_all)

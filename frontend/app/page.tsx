@@ -391,6 +391,9 @@ export default function WorkspacePage() {
   const [reportTitle, setReportTitle] = useState("");
   const [isCompiling, setIsCompiling] = useState(false);
   const [selectedAnalysisId, setSelectedAnalysisId] = useState("");
+  const [reportChartType, setReportChartType] = useState<string>("Time Series Line Chart");
+  const [chartExplanation, setChartExplanation] = useState("");
+  const [isExplaining, setIsExplaining] = useState(false);
   const [includeChart, setIncludeChart] = useState(true);
   const [includeMetrics, setIncludeMetrics] = useState(true);
   const [includeLogs, setIncludeLogs] = useState(true);
@@ -1001,6 +1004,39 @@ export default function WorkspacePage() {
   };
 
   // Compile Executive PDF Report
+  const handleGenerateExplanation = async () => {
+    if (!selectedAnalysisId) {
+      setStatusMsg("ERROR: Select a completed forecast run first.");
+      return;
+    }
+    setIsExplaining(true);
+    setStatusMsg("");
+    try {
+      const response = await fetch(getApiUrl("/api/v1/reports/explain-chart"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          analysis_id: selectedAnalysisId,
+          chart_type: reportChartType,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to generate AI explanation.");
+      }
+      const data = await response.json();
+      setChartExplanation(data.explanation);
+    } catch (err: any) {
+      console.error(err);
+      setStatusMsg(`ERROR: ${err.message || "Failed to generate explanation."}`);
+    } finally {
+      setIsExplaining(false);
+    }
+  };
+
   const handleCompileReport = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedAnalysisId) {
@@ -1028,6 +1064,7 @@ export default function WorkspacePage() {
           include_chart: includeChart,
           include_metrics: includeMetrics,
           include_logs: includeLogs,
+          chart_explanation: chartExplanation || null,
         }),
       });
 
@@ -1038,6 +1075,7 @@ export default function WorkspacePage() {
 
       setReportTitle("");
       setSelectedAnalysisId("");
+      setChartExplanation("");
       setStatusMsg("SUCCESS: Executive PDF compiled and registered.");
       await loadWorkspaceData();
     } catch (err: any) {
@@ -5301,15 +5339,16 @@ export default function WorkspacePage() {
 
                         <form onSubmit={handleCompileReport} className="flex flex-col gap-md">
                           
-                          {/* Choose run */}
-                          <div className="flex flex-col gap-1.5">
-                            <label className="text-[11px] text-ink font-bold uppercase tracking-wide">
-                              Select Completed Forecast Run
+                          {/* Step 1: Choose run */}
+                          <div className="flex flex-col gap-1.5 p-3 border border-hairline rounded-md bg-canvas">
+                            <label className="text-[11px] text-ink font-bold uppercase tracking-wide flex items-center gap-1.5">
+                              <span className="flex items-center justify-center w-4 h-4 rounded-full bg-ink text-white text-[9px]">1</span>
+                              Select Data Run
                             </label>
                             <select
                               value={selectedAnalysisId}
                               onChange={(e) => setSelectedAnalysisId(e.target.value)}
-                              className="bg-canvas text-ink border border-hairline px-3 py-2 text-caption rounded-md focus:border-ink outline-none"
+                              className="bg-canvas text-ink border border-hairline px-3 py-2 text-caption rounded-md focus:border-ink outline-none mt-1"
                               required
                             >
                               <option value="">-- Choose Completed Run --</option>
@@ -5321,74 +5360,130 @@ export default function WorkspacePage() {
                             </select>
                           </div>
 
-                          {/* Report title */}
-                          <div className="flex flex-col gap-1.5">
-                            <label className="text-[11px] text-ink font-bold uppercase tracking-wide">
-                              Report PDF Title
+                          {/* Step 2: Choose Chart for AI Insights */}
+                          <div className={`flex flex-col gap-2 p-3 border border-hairline rounded-md bg-canvas transition-opacity ${!selectedAnalysisId ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
+                            <label className="text-[11px] text-ink font-bold uppercase tracking-wide flex items-center gap-1.5">
+                              <span className="flex items-center justify-center w-4 h-4 rounded-full bg-ink text-white text-[9px]">2</span>
+                              Gather AI Insights
                             </label>
-                            <input
-                              type="text"
-                              value={reportTitle}
-                              onChange={(e) => setReportTitle(e.target.value)}
-                              placeholder="e.g. Q4 Growth Briefing"
-                              className="bg-canvas text-ink border border-hairline px-3 py-1.5 text-caption rounded-md focus:border-ink outline-none"
-                              required
-                            />
-                          </div>
-
-                          {/* Report sections selector */}
-                          <div className="flex flex-col gap-2 pt-1 border-t border-hairline">
-                            <span className="text-[11px] text-ink font-bold uppercase tracking-wide block mb-1">
-                              Included Sections (Formal Style)
-                            </span>
+                            <div className="text-caption text-muted mb-1 leading-snug">
+                              Select a chart type from this run to generate an intelligent analysis based on your RAG vector knowledge.
+                            </div>
                             
-                            <div className="flex items-center gap-xs">
-                              <input
-                                id="inc-chart-check"
-                                type="checkbox"
-                                checked={includeChart}
-                                onChange={(e) => setIncludeChart(e.target.checked)}
-                                className="w-4 h-4 border border-hairline bg-canvas rounded-sm accent-black cursor-pointer"
-                              />
-                              <label htmlFor="inc-chart-check" className="text-caption text-ink font-semibold select-none cursor-pointer">
-                                Include Visual Trendline Graph
-                              </label>
-                            </div>
-
-                            <div className="flex items-center gap-xs">
-                              <input
-                                id="inc-metrics-check"
-                                type="checkbox"
-                                checked={includeMetrics}
-                                onChange={(e) => setIncludeMetrics(e.target.checked)}
-                                className="w-4 h-4 border border-hairline bg-canvas rounded-sm accent-black cursor-pointer"
-                              />
-                              <label htmlFor="inc-metrics-check" className="text-caption text-ink font-semibold select-none cursor-pointer">
-                                Include Observed Data Table
-                              </label>
-                            </div>
-
-                            <div className="flex items-center gap-xs">
-                              <input
-                                id="inc-logs-check"
-                                type="checkbox"
-                                checked={includeLogs}
-                                onChange={(e) => setIncludeLogs(e.target.checked)}
-                                className="w-4 h-4 border border-hairline bg-canvas rounded-sm accent-black cursor-pointer"
-                              />
-                              <label htmlFor="inc-logs-check" className="text-caption text-ink font-semibold select-none cursor-pointer">
-                                Include Agent Audit Logs
-                              </label>
-                            </div>
+                            <select
+                              value={reportChartType}
+                              onChange={(e) => setReportChartType(e.target.value)}
+                              className="bg-canvas text-ink border border-hairline px-3 py-2 text-caption rounded-md focus:border-ink outline-none"
+                            >
+                              <option value="Time Series Line Chart">Time Series Line Chart</option>
+                              <option value="Bar Chart">Bar Chart</option>
+                              <option value="Waterfall Chart">Waterfall Chart</option>
+                              <option value="Scatter Plot">Scatter Plot</option>
+                              <option value="Box Plot">Box Plot</option>
+                            </select>
+                            
+                            {!chartExplanation ? (
+                              <button
+                                type="button"
+                                onClick={handleGenerateExplanation}
+                                disabled={isExplaining || !selectedAnalysisId}
+                                className="btn-secondary w-full justify-center mt-1 border-ink text-ink hover:bg-ink hover:text-white"
+                              >
+                                {isExplaining ? "Analyzing Context Vectors..." : "Generate AI Insight"}
+                              </button>
+                            ) : (
+                              <div className="mt-2 flex flex-col gap-1.5">
+                                <span className="text-[10px] font-bold text-green-700 uppercase tracking-widest flex items-center gap-1">
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                                  Insights Generated successfully
+                                </span>
+                                <textarea
+                                  value={chartExplanation}
+                                  onChange={(e) => setChartExplanation(e.target.value)}
+                                  className="w-full h-32 text-xs bg-[#f8fafc] border border-hairline p-2 rounded-md outline-none focus:border-ink resize-y"
+                                  placeholder="AI generated insight..."
+                                />
+                                <button type="button" onClick={() => setChartExplanation("")} className="text-xs text-muted hover:text-ink self-start underline">
+                                  Regenerate / Clear
+                                </button>
+                              </div>
+                            )}
                           </div>
 
-                          <button
-                            type="submit"
-                            disabled={isCompiling || !selectedAnalysisId}
-                            className="btn-primary w-full"
-                          >
-                            {isCompiling ? "Compiling PDF..." : "Compile Report"}
-                          </button>
+                          {/* Step 3: Compile Configuration */}
+                          <div className={`flex flex-col gap-3 p-3 border border-hairline rounded-md bg-canvas transition-opacity ${!chartExplanation && !selectedAnalysisId ? 'opacity-50 pointer-events-none' : 'opacity-100'}`}>
+                            <label className="text-[11px] text-ink font-bold uppercase tracking-wide flex items-center gap-1.5">
+                              <span className="flex items-center justify-center w-4 h-4 rounded-full bg-ink text-white text-[9px]">3</span>
+                              Finalize & Compile
+                            </label>
+                            
+                            <div className="flex flex-col gap-1">
+                              <label className="text-[10px] text-muted font-bold uppercase tracking-wider">
+                                Report Title
+                              </label>
+                              <input
+                                type="text"
+                                value={reportTitle}
+                                onChange={(e) => setReportTitle(e.target.value)}
+                                placeholder="e.g. Q4 Growth Briefing"
+                                className="bg-canvas text-ink border border-hairline px-3 py-1.5 text-caption rounded-md focus:border-ink outline-none"
+                                required
+                              />
+                            </div>
+
+                            <div className="flex flex-col gap-2 pt-2 border-t border-hairline">
+                              <span className="text-[10px] text-muted font-bold uppercase tracking-wider block mb-0.5">
+                                Included Formal Sections
+                              </span>
+                              
+                              <div className="flex items-center gap-xs">
+                                <input
+                                  id="inc-chart-check"
+                                  type="checkbox"
+                                  checked={includeChart}
+                                  onChange={(e) => setIncludeChart(e.target.checked)}
+                                  className="w-4 h-4 border border-hairline bg-canvas rounded-sm accent-black cursor-pointer"
+                                />
+                                <label htmlFor="inc-chart-check" className="text-caption text-ink font-semibold select-none cursor-pointer">
+                                  Include Visual Trendline Graph
+                                </label>
+                              </div>
+
+                              <div className="flex items-center gap-xs">
+                                <input
+                                  id="inc-metrics-check"
+                                  type="checkbox"
+                                  checked={includeMetrics}
+                                  onChange={(e) => setIncludeMetrics(e.target.checked)}
+                                  className="w-4 h-4 border border-hairline bg-canvas rounded-sm accent-black cursor-pointer"
+                                />
+                                <label htmlFor="inc-metrics-check" className="text-caption text-ink font-semibold select-none cursor-pointer">
+                                  Include Observed Data Table
+                                </label>
+                              </div>
+
+                              <div className="flex items-center gap-xs">
+                                <input
+                                  id="inc-logs-check"
+                                  type="checkbox"
+                                  checked={includeLogs}
+                                  onChange={(e) => setIncludeLogs(e.target.checked)}
+                                  className="w-4 h-4 border border-hairline bg-canvas rounded-sm accent-black cursor-pointer"
+                                />
+                                <label htmlFor="inc-logs-check" className="text-caption text-ink font-semibold select-none cursor-pointer">
+                                  Include Agent Audit Logs
+                                </label>
+                              </div>
+                            </div>
+
+                            <button
+                              type="submit"
+                              disabled={isCompiling || !selectedAnalysisId}
+                              className="btn-primary w-full mt-1"
+                            >
+                              {isCompiling ? "Compiling Official PDF..." : "Compile Official Report PDF"}
+                            </button>
+                          </div>
 
                         </form>
                       </div>
