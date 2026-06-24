@@ -1386,21 +1386,93 @@ export default function WorkspacePage() {
                   <title>{slice.label}&#10;Share Value: {slice.value.toLocaleString()}</title>
                 </path>
               ))}
+              {/* Pie/Donut slice value + % labels inside each slice */}
+              {slices.map((slice, i) => {
+                const midAngle = (slice.start + slice.end) / 2;
+                const labelR = chartType === "donut" ? rMax * 0.82 : rMax * 0.62;
+                const lx = cx + labelR * Math.cos(midAngle);
+                const ly = cy + labelR * Math.sin(midAngle);
+                const totalSum = history_values.slice(0, 5).reduce((a, b) => a + Math.abs(b), 0) || 1;
+                const pct = Math.round((Math.abs(slice.value) / totalSum) * 100);
+                if ((slice.end - slice.start) < 0.25) return null;
+                return (
+                  <g key={`pie-lbl-${i}`}>
+                    <text x={lx} y={ly - 5} fontSize="10" fill="#ffffff" textAnchor="middle" className="font-sans font-bold">
+                      {pct}%
+                    </text>
+                    <text x={lx} y={ly + 9} fontSize="8.5" fill="#ffffff" textAnchor="middle" className="font-mono">
+                      {slice.value.toLocaleString([], {maximumFractionDigits: 0})}
+                    </text>
+                  </g>
+                );
+              })}
             </g>
           )}
           
           {chartType === "donut" && (
-            <circle cx={cx} cy={cy} r="70" fill={theme.bg === "transparent" ? "#ffffff" : theme.bg} stroke="none" />
+            <g>
+              <circle cx={cx} cy={cy} r="70" fill={theme.bg === "transparent" ? "#ffffff" : theme.bg} stroke="none" />
+              <text x={cx} y={cy - 6} fontSize="11" fill={theme.text} textAnchor="middle" className="font-sans font-bold">Total</text>
+              <text x={cx} y={cy + 10} fontSize="10" fill={theme.text} textAnchor="middle" className="font-mono">
+                {history_values.slice(0, 5).reduce((a, b) => a + Math.abs(b), 0).toLocaleString([], {maximumFractionDigits: 0})}
+              </text>
+            </g>
           )}
-          
-          {/* Pie Legend */}
-          <g transform={`translate(${width - 150}, ${topMargin})`}>
-            {slices.map((slice, i) => (
-              <g key={i} transform={`translate(0, ${i * 20})`}>
-                <rect x="0" y="0" width="12" height="12" fill={slice.color} rx="2" />
-                <text x="18" y="10" fontSize="9" fill={theme.text} className="font-sans font-medium">{slice.label}</text>
-              </g>
-            ))}
+
+          {/* Sunburst value labels at inner ring mid-angle */}
+          {chartType === "sunburst" && slices.map((slice, i) => {
+            const midAngle = (slice.start + slice.end) / 2;
+            const lx = cx + rMax * 0.58 * Math.cos(midAngle);
+            const ly = cy + rMax * 0.58 * Math.sin(midAngle);
+            const totalSum = history_values.slice(0, 5).reduce((a, b) => a + Math.abs(b), 0) || 1;
+            const pct = Math.round((Math.abs(slice.value) / totalSum) * 100);
+            if ((slice.end - slice.start) < 0.3) return null;
+            return (
+              <text key={`sun-lbl-${i}`} x={lx} y={ly + 4} fontSize="9" fill="#ffffff" textAnchor="middle" className="font-sans font-bold">
+                {pct}%
+              </text>
+            );
+          })}
+
+          {/* Chord value labels at arc mid-point */}
+          {chartType === "chord" && slices.map((slice, i) => {
+            const midAngle = (slice.start + slice.end) / 2;
+            const lx = cx + (rMax + 22) * Math.cos(midAngle);
+            const ly = cy + (rMax + 22) * Math.sin(midAngle);
+            return (
+              <text key={`chord-lbl-${i}`} x={lx} y={ly + 4} fontSize="9" fill={theme.text} textAnchor="middle" className="font-mono">
+                {slice.value.toLocaleString([], {maximumFractionDigits: 0})}
+              </text>
+            );
+          })}
+
+          {/* Icicle value labels inside each cell */}
+          {chartType === "icicle" && (
+            <g>
+              <text x={leftMargin + chartWidth / 2} y={topMargin + 54} fontSize="9" fill="rgba(255,255,255,0.7)" textAnchor="middle" className="font-mono">
+                {history_values[0]?.toLocaleString([], {maximumFractionDigits: 0}) ?? ""}
+              </text>
+              <text x={leftMargin + (chartWidth * 0.6) / 2} y={topMargin + 115} fontSize="8" fill="rgba(255,255,255,0.7)" textAnchor="middle" className="font-mono">
+                {history_values[0]?.toLocaleString([], {maximumFractionDigits: 0}) ?? ""}
+              </text>
+              <text x={leftMargin + chartWidth * 0.6 + (chartWidth * 0.4) / 2} y={topMargin + 115} fontSize="8" fill="rgba(255,255,255,0.7)" textAnchor="middle" className="font-mono">
+                {history_values[1]?.toLocaleString([], {maximumFractionDigits: 0}) ?? ""}
+              </text>
+            </g>
+          )}
+
+          {/* Pie Legend with % */}
+          <g transform={`translate(${width - 155}, ${topMargin})`}>
+            {slices.map((slice, i) => {
+              const totalSum = history_values.slice(0, 5).reduce((a, b) => a + Math.abs(b), 0) || 1;
+              const pct = Math.round((Math.abs(slice.value) / totalSum) * 100);
+              return (
+                <g key={i} transform={`translate(0, ${i * 22})`}>
+                  <rect x="0" y="0" width="12" height="12" fill={slice.color} rx="2" />
+                  <text x="18" y="10" fontSize="9" fill={theme.text} className="font-sans font-medium">{slice.label} ({pct}%)</text>
+                </g>
+              );
+            })}
           </g>
         </svg>
       );
@@ -1707,6 +1779,12 @@ export default function WorkspacePage() {
                 <text x={x} y={height - bottomMargin + 18} fontSize="9" fill={theme.text} textAnchor="middle" className="font-sans font-bold">
                   {box.label}
                 </text>
+                {/* Five-number summary value labels */}
+                <text x={x + boxW / 2 + 6} y={yMaxBox + 4} fontSize="8" fill={color} textAnchor="start" className="font-mono">Max: {box.max.toLocaleString([], { maximumFractionDigits: 1 })}</text>
+                <text x={x + boxW / 2 + 6} y={yQ3 + 4} fontSize="8" fill={color} textAnchor="start" className="font-mono">Q3: {box.q3.toLocaleString([], { maximumFractionDigits: 1 })}</text>
+                <text x={x + boxW / 2 + 6} y={yMed + 4} fontSize="8" fill="#ffffff" textAnchor="start" className="font-mono font-bold">Md: {box.med.toLocaleString([], { maximumFractionDigits: 1 })}</text>
+                <text x={x + boxW / 2 + 6} y={yQ1 + 4} fontSize="8" fill={color} textAnchor="start" className="font-mono">Q1: {box.q1.toLocaleString([], { maximumFractionDigits: 1 })}</text>
+                <text x={x + boxW / 2 + 6} y={yMinBox + 4} fontSize="8" fill={color} textAnchor="start" className="font-mono">Min: {box.min.toLocaleString([], { maximumFractionDigits: 1 })}</text>
               </g>
             );
           })}
@@ -1774,8 +1852,16 @@ export default function WorkspacePage() {
                     const exponent = -0.5 * Math.pow((i - 5.5) / 3.0, 2);
                     const binHeight = Math.exp(exponent) * chartHeight * 0.8;
                     const y = height - bottomMargin - binHeight;
+                    const binCount = Math.round(Math.exp(exponent) * 40);
                     return (
-                      <rect key={i} x={x + 1} y={y} width={w - 2} height={binHeight} fill={colors.history} fillOpacity="0.75" stroke={theme.bg} strokeWidth="0.5" />
+                      <g key={i}>
+                        <rect x={x + 1} y={y} width={w - 2} height={binHeight} fill={colors.history} fillOpacity="0.75" stroke={theme.bg} strokeWidth="0.5" />
+                        {binHeight > 20 && (
+                          <text x={x + w / 2} y={y - 4} fontSize="8" fill={theme.text} textAnchor="middle" className="font-mono">
+                            {binCount}
+                          </text>
+                        )}
+                      </g>
                     );
                   })}
                 </g>
@@ -2542,6 +2628,11 @@ export default function WorkspacePage() {
                   <g key={`candle-${idx}`}>
                     <line x1={x} y1={yHigh} x2={x} y2={yLow} stroke={fill} strokeWidth="1.5" />
                     <rect x={x - rectW / 2} y={Math.min(yOpen, yClose)} width={rectW} height={Math.max(2, Math.abs(yOpen - yClose))} fill={fill} rx="1" />
+                    {idx % 3 === 0 && (
+                      <text x={x} y={yHigh - 6} fontSize="7.5" fill={fill} textAnchor="middle" className="font-mono">
+                        {close.toLocaleString([], { maximumFractionDigits: 1 })}
+                      </text>
+                    )}
                   </g>
                 );
               })}
@@ -2569,6 +2660,11 @@ export default function WorkspacePage() {
                     <line x1={x} y1={yHigh} x2={x} y2={yLow} />
                     <line x1={x - 4} y1={yOpen} x2={x} y2={yOpen} />
                     <line x1={x} y1={yClose} x2={x + 4} y2={yClose} />
+                    {idx % 3 === 0 && (
+                      <text x={x + 8} y={yHigh - 4} fontSize="7.5" fill={strokeCol} textAnchor="start" className="font-mono" stroke="none">
+                        C:{close.toLocaleString([], { maximumFractionDigits: 1 })}
+                      </text>
+                    )}
                   </g>
                 );
               })}
@@ -2584,10 +2680,15 @@ export default function WorkspacePage() {
                 const x = leftMargin + (idx / 14) * chartWidth;
                 const coeff = idx === 0 ? 1.0 : (Math.sin(idx) / (idx * 0.7));
                 const py = cy - coeff * 80;
+                const isAbove = coeff >= 0;
                 return (
                   <g key={`pin-${idx}`}>
                     <line x1={x} y1={cy} x2={x} y2={py} stroke={colors.history} strokeWidth="2" />
                     <circle cx={x} cy={py} r="4" fill={colors.forecast} />
+                    {/* Correlation coefficient label */}
+                    <text x={x} y={isAbove ? py - 8 : py + 16} fontSize="7.5" fill={theme.text} textAnchor="middle" className="font-mono">
+                      {coeff.toFixed(2)}
+                    </text>
                   </g>
                 );
               })}
@@ -2612,6 +2713,7 @@ export default function WorkspacePage() {
                   const barH = isFirst ? (height - bottomMargin - startY) : Math.abs(startY - endY);
                   const barY = isFirst ? startY : Math.min(startY, endY);
                   const fill = isFirst ? colors.history : (increment >= 0 ? "#22c55e" : "#ef4444");
+                  const labelY = barY - 6;
                   
                   return (
                     <g key={`wf-${idx}`}>
@@ -2619,6 +2721,12 @@ export default function WorkspacePage() {
                       {idx > 0 && (
                         <line x1={x - 10} y1={startY} x2={x} y2={startY} stroke={theme.text} strokeWidth="1" strokeDasharray="3 3" />
                       )}
+                      {/* Waterfall increment value label */}
+                      <text x={x + w / 2} y={labelY} fontSize="8.5" fill={fill} textAnchor="middle" className="font-mono font-bold">
+                        {isFirst
+                          ? val.toLocaleString([], { maximumFractionDigits: 0 })
+                          : (increment >= 0 ? "+" : "") + increment.toLocaleString([], { maximumFractionDigits: 0 })}
+                      </text>
                     </g>
                   );
                 })}
@@ -3157,6 +3265,90 @@ export default function WorkspacePage() {
                 })}
               </>
             )}
+
+            {chartType === "horizontal_bar" && history_values.slice(0, 10).map((val, idx) => {
+              const barH = 15;
+              const barY = topMargin + idx * (chartHeight / 10) + (chartHeight / 20) - barH / 2;
+              const barW = Math.max(2, ((val - yMin) / yRange) * chartWidth);
+              return (
+                <g key={`hbar-lbl-${idx}`}>
+                  <text x={leftMargin + barW + 7} y={barY + barH / 2 + 4} fontSize="9" fill={theme.text} textAnchor="start" className="font-mono font-bold">
+                    {val.toLocaleString([], { maximumFractionDigits: 1 })}
+                  </text>
+                  <text x={leftMargin - 6} y={barY + barH / 2 + 4} fontSize="8.5" fill={theme.text} textAnchor="end" className="font-sans">
+                    {config.history_dates[idx] || `#${idx + 1}`}
+                  </text>
+                </g>
+              );
+            })}
+
+            {chartType === "grouped_bar" && history_values.map((val, idx) => {
+              const x1 = getX(idx) - barWidth / 2;
+              const x2 = getX(idx);
+              const y1 = getY(val);
+              const y2 = getY(val * 0.8 + valRange * 0.05);
+              return barWidth > 10 ? (
+                <g key={`grouped-lbl-${idx}`}>
+                  <text x={x1 + barWidth / 4 - 1} y={y1 - 5} fontSize="8" fill={colors.history} textAnchor="middle" className="font-mono">
+                    {val.toLocaleString([], { maximumFractionDigits: 0 })}
+                  </text>
+                  <text x={x2 + barWidth / 4 - 1} y={y2 - 5} fontSize="8" fill={colors.trend} textAnchor="middle" className="font-mono">
+                    {(val * 0.8 + valRange * 0.05).toLocaleString([], { maximumFractionDigits: 0 })}
+                  </text>
+                </g>
+              ) : null;
+            })}
+
+            {(chartType === "stacked_bar" || chartType === "stacked_bar_100") && history_values.map((val, idx) => {
+              const x = getX(idx) - barWidth / 2;
+              const factor = chartType === "stacked_bar_100" ? (val / (val * 1.5)) : 1;
+              const yBottom = getY(val * 0.7 * factor);
+              const yTop = getY(val * factor);
+              const seg1H = Math.max(1, height - bottomMargin - yBottom);
+              const seg2H = Math.max(1, yBottom - yTop);
+              return barWidth > 12 ? (
+                <g key={`stacked-lbl-${idx}`}>
+                  {seg1H > 16 && (
+                    <text x={x + barWidth / 2} y={yBottom + seg1H / 2 + 4} fontSize="7.5" fill="#ffffff" textAnchor="middle" className="font-mono">
+                      {chartType === "stacked_bar_100" ? "47%" : val.toLocaleString([], { maximumFractionDigits: 0 })}
+                    </text>
+                  )}
+                  {seg2H > 16 && (
+                    <text x={x + barWidth / 2} y={yTop + seg2H / 2 + 4} fontSize="7.5" fill="#ffffff" textAnchor="middle" className="font-mono">
+                      {chartType === "stacked_bar_100" ? "53%" : (val * 0.3 * factor).toLocaleString([], { maximumFractionDigits: 0 })}
+                    </text>
+                  )}
+                  <text x={x + barWidth / 2} y={yTop - 5} fontSize="8.5" fill={theme.text} textAnchor="middle" className="font-mono font-bold">
+                    {(val * factor).toLocaleString([], { maximumFractionDigits: 0 })}
+                  </text>
+                </g>
+              ) : null;
+            })}
+
+            {!["horizontal_bar", "grouped_bar", "stacked_bar", "stacked_bar_100"].includes(chartType) && (
+              <>
+                {history_values.map((val, idx) => {
+                  const x = getX(idx) - barWidth / 2;
+                  const y = getY(val);
+                  const topY = Math.min(height - bottomMargin, y);
+                  return barWidth > 8 ? (
+                    <text key={`hist-bar-lbl-${idx}`} x={x + barWidth / 2} y={topY - 5} fontSize="8.5" fill={theme.text} textAnchor="middle" className="font-mono font-bold">
+                      {val.toLocaleString([], { maximumFractionDigits: 0 })}
+                    </text>
+                  ) : null;
+                })}
+                {forecast_values.map((val, idx) => {
+                  const x = getX(history_values.length + idx) - barWidth / 2;
+                  const y = getY(val);
+                  const topY = Math.min(height - bottomMargin, y);
+                  return barWidth > 8 ? (
+                    <text key={`fore-bar-lbl-${idx}`} x={x + barWidth / 2} y={topY - 5} fontSize="8.5" fill={colors.forecast} textAnchor="middle" className="font-mono font-bold">
+                      {val.toLocaleString([], { maximumFractionDigits: 0 })}
+                    </text>
+                  ) : null;
+                })}
+              </>
+            )}
           </g>
         )}
 
@@ -3176,6 +3368,7 @@ export default function WorkspacePage() {
               const cx5 = baseCx + jitter;
               const cy5 = getY(val);
               const rad = chartType === "bubble" ? 4 + 10 * (val / maxVal) : 5;
+              const showLabel = ["lollipop", "dumbbell", "bubble"].includes(chartType) || idx % 4 === 0;
               
               return (
                 <g key={`hist-scat-${idx}`}>
@@ -3200,6 +3393,11 @@ export default function WorkspacePage() {
                   >
                     <title>Date: {config.history_dates[idx]}&#10;Value: {val.toLocaleString()}</title>
                   </circle>
+                  {showLabel && (
+                    <text x={cx5} y={cy5 - rad - 5} fontSize="8" fill={theme.text} textAnchor="middle" className="font-mono">
+                      {val.toLocaleString([], { maximumFractionDigits: 1 })}
+                    </text>
+                  )}
                 </g>
               );
             })}
@@ -3208,6 +3406,7 @@ export default function WorkspacePage() {
               const cx5 = getX(history_values.length + idx);
               const cy5 = getY(val);
               const rad = chartType === "bubble" ? 4 + 10 * (val / maxVal) : 5;
+              const showLabel = ["lollipop", "dumbbell", "bubble"].includes(chartType) || idx % 4 === 0;
               
               return (
                 <g key={`fore-scat-${idx}`}>
@@ -3228,6 +3427,11 @@ export default function WorkspacePage() {
                   >
                     <title>Date: {config.forecast_dates[idx]}&#10;Value: {val.toLocaleString()}</title>
                   </circle>
+                  {showLabel && (
+                    <text x={cx5} y={cy5 - rad - 5} fontSize="8" fill={colors.forecast} textAnchor="middle" className="font-mono">
+                      {val.toLocaleString([], { maximumFractionDigits: 1 })}
+                    </text>
+                  )}
                 </g>
               );
             })}
@@ -3252,15 +3456,39 @@ export default function WorkspacePage() {
                   <line x1={x} y1={yLow} x2={x} y2={yHigh} stroke={colors.ci} strokeWidth="2" />
                   <line x1={x - 5} y1={yHigh} x2={x + 5} y2={yHigh} stroke={colors.ci} strokeWidth="2" />
                   <line x1={x - 5} y1={yLow} x2={x + 5} y2={yLow} stroke={colors.ci} strokeWidth="2" />
+                  {idx % 3 === 0 && upper_bounds[idx] !== undefined && (
+                    <>
+                      <text x={x + 8} y={yHigh - 3} fontSize="7.5" fill={colors.ci} textAnchor="start" className="font-mono">
+                        ↑{upper_bounds[idx]?.toLocaleString([], { maximumFractionDigits: 1 })}
+                      </text>
+                      <text x={x + 8} y={yLow + 11} fontSize="7.5" fill={colors.ci} textAnchor="start" className="font-mono">
+                        ↓{lower_bounds[idx]?.toLocaleString([], { maximumFractionDigits: 1 })}
+                      </text>
+                    </>
+                  )}
                 </g>
               );
             })}
 
             {history_values.map((val, idx) => (
-              <circle key={`pt-hist-${idx}`} cx={getX(idx)} cy={getY(val)} r="5" fill={colors.history} stroke="#ffffff" strokeWidth="1.5" />
+              <g key={`pt-hist-${idx}`}>
+                <circle cx={getX(idx)} cy={getY(val)} r="5" fill={colors.history} stroke="#ffffff" strokeWidth="1.5" />
+                {idx % 3 === 0 && (
+                  <text x={getX(idx)} y={getY(val) - 9} fontSize="8" fill={theme.text} textAnchor="middle" className="font-mono">
+                    {val.toLocaleString([], { maximumFractionDigits: 1 })}
+                  </text>
+                )}
+              </g>
             ))}
             {forecast_values.map((val, idx) => (
-              <circle key={`pt-fore-${idx}`} cx={getX(history_values.length + idx)} cy={getY(val)} r="5" fill={colors.forecast} stroke="#ffffff" strokeWidth="1.5" />
+              <g key={`pt-fore-${idx}`}>
+                <circle cx={getX(history_values.length + idx)} cy={getY(val)} r="5" fill={colors.forecast} stroke="#ffffff" strokeWidth="1.5" />
+                {idx % 3 === 0 && (
+                  <text x={getX(history_values.length + idx)} y={getY(val) - 9} fontSize="8" fill={colors.forecast} textAnchor="middle" className="font-mono">
+                    {val.toLocaleString([], { maximumFractionDigits: 1 })}
+                  </text>
+                )}
+              </g>
             ))}
           </g>
         )}
