@@ -396,7 +396,7 @@ async def upload_document(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    uploads_dir = "/app/uploads"
+    uploads_dir = settings.UPLOAD_DIR
     os.makedirs(uploads_dir, exist_ok=True)
     
     file_id = uuid.uuid4()

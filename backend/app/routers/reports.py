@@ -2,12 +2,13 @@ import os
 import uuid
 import datetime
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from pydantic import BaseModel
+import httpx
 
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
@@ -21,6 +22,9 @@ from app.models.report import Report
 from app.models.agent_log import AgentLog
 from app.models.chart import Chart
 from app.routers.auth import get_current_user
+from app.config import settings
+from app.routers.chat import get_query_embedding, run_llm_completion
+from app.routers.documents import get_chroma_collection
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +36,11 @@ class ReportCreateRequest(BaseModel):
     include_chart: bool = True
     include_metrics: bool = True
     include_logs: bool = True
+    chart_explanation: str | None = None
+
+class ExplainChartRequest(BaseModel):
+    analysis_id: str
+    chart_type: str
 
 def generate_pdf_report(
     file_path: str, 
@@ -41,7 +50,8 @@ def generate_pdf_report(
     chart_config: dict | None,
     include_chart: bool,
     include_metrics: bool,
-    include_logs: bool
+    include_logs: bool,
+    chart_explanation: str | None = None
 ) -> None:
     """Compile structured print-ready PDF using ReportLab Platypus elements with a formal business design."""
     # Ensure directory exists
@@ -241,10 +251,27 @@ def generate_pdf_report(
             
             story.append(d)
             story.append(Spacer(1, 12))
+            
+    # Section: AI Chart Explanation
+    if chart_explanation:
+        story.append(Paragraph("4. AI CHART EXPLANATION & CONTEXT", heading_style))
+        for line in chart_explanation.split('\n'):
+            line = line.strip()
+            if not line:
+                story.append(Spacer(1, 4))
+                continue
+            # Simple markdown bullet point parsing
+            if line.startswith('- ') or line.startswith('* '):
+                story.append(Paragraph(f"&bull; {line[2:]}", body_style))
+            elif line.startswith('**') and line.endswith('**'):
+                story.append(Paragraph(f"<b>{line[2:-2]}</b>", body_style))
+            else:
+                story.append(Paragraph(line, body_style))
+        story.append(Spacer(1, 10))
         
     # Section: Audit logs summary
     if logs and include_logs:
-        story.append(Paragraph("4. MULTI-AGENT EXECUTION AUDIT", heading_style))
+        story.append(Paragraph("5. MULTI-AGENT EXECUTION AUDIT", heading_style))
         for log in logs:
             agent_title = f"<b>Agent: {log.agent_name.upper()}</b> (Diagnostic execution: {log.duration_ms} ms)"
             story.append(Paragraph(agent_title, body_style))
@@ -313,7 +340,8 @@ async def create_report(
             chart_config,
             req.include_chart,
             req.include_metrics,
-            req.include_logs
+            req.include_logs,
+            req.chart_explanation
         )
     except Exception as e:
         logger.error(f"Error compiling PDF: {e}")
@@ -425,3 +453,74 @@ async def delete_report(
     await db.commit()
     
     return {"message": "Report successfully deleted."}
+
+@router.post("/explain-chart")
+async def explain_chart(
+    req: ExplainChartRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Generate an AI explanation for a specific chart based on run context."""
+    try:
+        run_uuid = uuid.UUID(req.analysis_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid analysis ID format.")
+        
+    result = await db.execute(
+        select(Analysis)
+        .filter(Analysis.id == run_uuid, Analysis.user_id == current_user.id)
+    )
+    run = result.scalars().first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Analysis run not found.")
+        
+    # Extract dynamic override headers if sent by frontend settings client
+    hf_api_key = request.headers.get("X-HuggingFace-Api-Key")
+    groq_api_key = request.headers.get("X-Groq-Api-Key")
+    groq_model = request.headers.get("X-Groq-Model")
+    
+    # RAG vector context search
+    query_vector = await get_query_embedding(run.query, hf_api_key=hf_api_key)
+    
+    where_filter = {"user_id": str(current_user.id)}
+    if run.document_id:
+        where_filter["document_id"] = str(run.document_id)
+        
+    retrieved_chunks = []
+    try:
+        search_results = get_chroma_collection().query(
+            query_embeddings=[query_vector],
+            n_results=3,
+            where=where_filter
+        )
+        if search_results and "documents" in search_results and search_results["documents"]:
+            docs = search_results["documents"][0]
+            retrieved_chunks.extend(docs)
+    except Exception as e:
+        logger.error(f"Error querying ChromaDB inside explain-chart: {e}")
+        
+    context_str = "\n\n".join(retrieved_chunks)
+    
+    system_prompt = (
+        "You are an expert Data Analyst assistant.\n"
+        f"The user wants an explanation for a '{req.chart_type}' chart that was generated from the query: '{run.query}'.\n"
+        "Provide a very brief, sharp 3-4 sentence explanation of what this chart likely shows and what the key takeaways are based on the context provided below.\n"
+        "Do NOT include conversational filler like 'Here is the explanation'. Just the insights.\n\n"
+        "CONTEXT:\n"
+        f"{context_str or 'No relevant passages found.'}"
+    )
+    
+    # 3. Compute LLM Response
+    reply = await run_llm_completion(
+        system_prompt, 
+        [], 
+        f"Explain the {req.chart_type} chart.",
+        groq_api_key=groq_api_key,
+        groq_model=groq_model
+    )
+    
+    if not reply.strip():
+        reply = "No insights could be generated. Please ensure your Groq API key is configured."
+        
+    return {"explanation": reply}
