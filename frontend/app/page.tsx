@@ -5354,7 +5354,7 @@ export default function WorkspacePage() {
                               <option value="">-- Choose Completed Run --</option>
                               {runs.filter(r => r.status === "completed").map((run) => (
                                 <option key={run.id} value={run.id}>
-                                  {run.query.substring(0, 32)}...
+                                  {run.query.substring(0, 32)}... ({new Date(run.created_at).toLocaleString()})
                                 </option>
                               ))}
                             </select>
