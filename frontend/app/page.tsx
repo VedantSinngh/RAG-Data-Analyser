@@ -4833,26 +4833,30 @@ export default function WorkspacePage() {
                       </div>
                     )}
 
-                    <div className={isFullScreen ? "grid grid-cols-12 gap-gutter flex-grow h-[calc(100vh-120px)] overflow-hidden" : "contents"}>
+                    <div className={isFullScreen ? "grid grid-cols-12 gap-6 flex-grow h-[calc(100vh-120px)] overflow-hidden" : "contents"}>
                       {/* Left Pane: Chat Threads & Focus */}
                       <div className={`${
                         isFullScreen ? "col-span-3" : "col-span-3 border-r"
-                      } border-hairline pr-md flex flex-col justify-between h-full overflow-hidden`}>
+                      } border-hairline pr-6 flex flex-col justify-between h-full overflow-hidden`}>
                         <div className="flex flex-col h-full overflow-hidden">
-                          <div className="flex justify-between items-center pb-sm border-b border-hairline mb-sm">
-                            <h3 className="text-title-sm text-ink font-cal m-0">Conversations</h3>
+                          <div className="flex justify-between items-center pb-4 mb-2">
+                            <h3 className="text-sm font-semibold text-ink m-0 flex items-center gap-2">
+                              <svg viewBox="0 0 24 24" className="w-4 h-4 stroke-current fill-none" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                              Conversations
+                            </h3>
                             <button
                               onClick={handleCreateConversation}
-                              className="bg-transparent hover:bg-surface-soft text-link hover:text-link-active text-xs font-semibold py-1 px-2 border border-hairline rounded transition-colors"
+                              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surface-soft text-ink transition-colors"
+                              title="New Thread"
                             >
-                              + New Thread
+                              <svg viewBox="0 0 24 24" className="w-4 h-4 stroke-current fill-none" strokeWidth="2"><path d="M12 5v14M5 12h14"/></svg>
                             </button>
                           </div>
                           
                           {/* Threads List */}
-                          <div className="flex-grow overflow-y-auto space-y-1.5 pr-xs">
+                          <div className="flex-grow overflow-y-auto space-y-1 pr-2">
                             {conversations.length === 0 ? (
-                              <div className="text-center py-8 text-caption text-muted">
+                              <div className="text-center py-10 text-xs text-muted">
                                 No active threads
                               </div>
                             ) : (
@@ -4862,16 +4866,16 @@ export default function WorkspacePage() {
                                   <button
                                     key={conv.id}
                                     onClick={() => handleSelectConversation(conv.id)}
-                                    className={`w-full text-left p-2.5 rounded-lg border text-caption transition-all block ${
+                                    className={`w-full text-left px-3 py-3 rounded-xl text-sm transition-all block ${
                                       isActive
-                                        ? "bg-surface-soft border-hairline text-ink font-semibold shadow-subtle"
-                                        : "bg-canvas border-transparent text-muted hover:bg-surface-soft hover:text-ink"
+                                        ? "bg-surface-soft text-ink font-medium"
+                                        : "bg-transparent text-muted hover:bg-surface-soft hover:text-ink"
                                     }`}
                                   >
-                                    <div className="truncate pr-sm">
+                                    <div className="truncate pr-2">
                                       {conv.preview || `Thread ${conv.id.slice(0, 8)}`}
                                     </div>
-                                    <div className="text-[10px] text-muted font-mono mt-1">
+                                    <div className="text-[10px] text-muted opacity-60 mt-1">
                                       {new Date(conv.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     </div>
                                   </button>
@@ -4882,17 +4886,20 @@ export default function WorkspacePage() {
                         </div>
 
                         {/* RAG Context Focus */}
-                        <div className="border-t border-hairline pt-sm mt-sm bg-canvas">
-                          <span className="text-[10px] text-muted font-bold tracking-wider uppercase block">RAG Context Focus</span>
+                        <div className="pt-4 mt-4 bg-canvas">
+                          <label className="text-[11px] text-muted font-medium mb-1.5 flex items-center gap-1.5">
+                            <svg viewBox="0 0 24 24" className="w-3 h-3 stroke-current fill-none" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                            RAG Focus
+                          </label>
                           <select
                             value={selectedDocId}
                             onChange={(e) => setSelectedDocId(e.target.value)}
-                            className="w-full bg-canvas text-ink border border-hairline px-3 py-2 text-caption font-semibold rounded-md mt-1 focus:border-ink outline-none"
+                            className="w-full bg-surface-soft text-ink border-none px-3 py-2.5 text-xs rounded-xl focus:ring-1 focus:ring-ink outline-none transition-all cursor-pointer appearance-none"
                           >
                             <option value="">Query Entire Index</option>
                             {documents.map((d) => (
                               <option key={d.id} value={d.id}>
-                                Only {d.filename}
+                                {d.filename}
                               </option>
                             ))}
                           </select>
@@ -4902,27 +4909,31 @@ export default function WorkspacePage() {
                       {/* Middle Pane: Chat Workspace */}
                       <div className={`${
                         isFullScreen ? "col-span-6" : "col-span-9"
-                      } flex flex-col justify-between h-full px-sm overflow-hidden border-hairline pr-md`}>
+                      } flex flex-col h-full ${!isFullScreen ? 'pl-2' : ''} overflow-hidden relative`}>
                         
                         {/* Active Conversation header */}
-                        <div className="border-b border-hairline pb-xs mb-sm flex justify-between items-center">
-                          <div>
-                            <span className="text-[11px] text-muted font-bold tracking-wider uppercase block">RAG Conversational Node</span>
-                            <span className="text-caption text-ink font-semibold">
-                              {activeConvId ? `Active Session: ${activeConvId.slice(0, 8)}` : "Select or Start a Session"}
-                            </span>
+                        <div className="flex justify-between items-center pb-3 mb-2">
+                          <div className="flex items-center gap-2">
+                            {activeConvId ? (
+                              <div className="flex items-center gap-2 px-3 py-1.5 bg-surface-soft rounded-full">
+                                <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
+                                <span className="text-xs font-medium text-ink">Session: {activeConvId.slice(0, 8)}</span>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted">Select or start a session</span>
+                            )}
                           </div>
                           <div className="flex items-center gap-3">
                             {isSending && (
-                              <span className="text-[10px] font-mono text-link animate-pulse font-bold">AGENTS COLLABORATING...</span>
+                              <span className="text-[10px] font-mono text-link animate-pulse font-medium">Processing...</span>
                             )}
                             {!isFullScreen && (
                               <button
                                 onClick={() => setIsFullScreen(true)}
-                                className="p-1.5 border border-hairline hover:bg-surface-soft rounded text-muted hover:text-ink transition-all cursor-pointer"
-                                title="Show full screen dashboard"
+                                className="w-8 h-8 flex items-center justify-center rounded hover:bg-surface-soft text-muted hover:text-ink transition-all cursor-pointer"
+                                title="Expand to fullscreen"
                               >
-                                <svg viewBox="0 0 24 24" className="w-4 h-4 stroke-current fill-none" strokeWidth="2.5">
+                                <svg viewBox="0 0 24 24" className="w-4 h-4 stroke-current fill-none" strokeWidth="2">
                                   <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
                                 </svg>
                               </button>
@@ -4931,14 +4942,15 @@ export default function WorkspacePage() {
                         </div>
 
                         {/* Message Log */}
-                        <div className="flex-grow p-sm overflow-y-auto flex flex-col gap-md border border-hairline rounded-md bg-[#fafbfc] mb-sm">
+                        <div className="flex-grow overflow-y-auto flex flex-col gap-6 px-2 pb-4 scrollbar-hide">
                           {messages.length === 0 ? (
-                            <div className="text-center py-20 flex flex-col justify-center items-center h-full">
-                              <span className="text-title-sm text-muted font-cal block mb-1">
-                                Conversational RAG Node Active
-                              </span>
-                              <p className="text-caption text-muted m-0 max-w-sm">
-                                Query the vector store. Ask questions about columns, structures, correlations, or topics.
+                            <div className="m-auto text-center flex flex-col items-center justify-center opacity-60">
+                              <div className="w-12 h-12 rounded-2xl bg-surface-soft flex items-center justify-center mb-4">
+                                <svg viewBox="0 0 24 24" className="w-6 h-6 stroke-ink fill-none" strokeWidth="1.5"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+                              </div>
+                              <h3 className="text-sm font-medium text-ink mb-1">How can I help you analyze the data?</h3>
+                              <p className="text-xs text-muted max-w-[250px]">
+                                Ask questions about trends, correlations, specific values, or request insights.
                               </p>
                             </div>
                           ) : (
@@ -4946,52 +4958,49 @@ export default function WorkspacePage() {
                               {messages.map((msg, i) => (
                                 <div
                                   key={i}
-                                  className={`flex flex-col gap-1 max-w-[90%] ${
-                                    msg.role === "user" ? "self-end items-end" : "self-start items-start"
+                                  className={`flex flex-col gap-1.5 w-full ${
+                                    msg.role === "user" ? "items-end" : "items-start"
                                   }`}
                                 >
-                                  <span className="text-[9px] font-bold tracking-widest uppercase text-muted font-mono">
-                                    {msg.role === "user" ? "USER" : "DATA ANALYST AGENT"}
-                                  </span>
                                   <div
-                                    className={`p-md rounded-lg text-caption leading-relaxed shadow-subtle border ${
+                                    className={`px-5 py-3.5 rounded-2xl text-[13px] leading-relaxed shadow-sm max-w-[85%] ${
                                       msg.role === "user"
-                                        ? "bg-canvas text-ink border-hairline font-sans"
-                                        : "bg-surface-soft text-ink border-hairline-soft font-sans"
+                                        ? "bg-ink text-canvas rounded-br-sm"
+                                        : "bg-surface-soft text-ink rounded-bl-sm border border-hairline-soft"
                                     }`}
                                   >
                                     {renderMessageContent(msg.content)}
                                   </div>
                                   {msg.role === "assistant" && msg.sources && msg.sources.length > 0 && (
-                                    <div className="flex flex-wrap gap-1 mt-1 items-center">
-                                      <span className="text-[9px] tracking-wider uppercase text-muted mr-1 font-semibold">Citations:</span>
+                                    <div className="flex flex-wrap gap-1.5 mt-1 ml-1">
                                       {msg.sources.map((src, sIdx) => (
-                                        <span key={sIdx} className="text-[9px] font-bold bg-[#fcf0eb] text-[#aa2d00] px-2 py-0.5 rounded-sm border border-[#fcf0eb]">
-                                          {src.filename} (chunk {src.chunk_index + 1})
-                                        </span>
+                                        <div key={sIdx} className="flex items-center gap-1 bg-surface-soft text-muted px-2 py-1 rounded-md border border-hairline text-[10px]">
+                                          <svg viewBox="0 0 24 24" className="w-3 h-3 stroke-current fill-none" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+                                          {src.filename}
+                                        </div>
                                       ))}
                                     </div>
                                   )}
                                 </div>
                               ))}
                               {isUploading && (
-                                <div className="flex flex-col gap-1 max-w-[90%] self-start items-start animate-pulse">
-                                  <span className="text-[9px] font-bold tracking-widest uppercase text-muted font-mono">
-                                    INGESTION AGENT
-                                  </span>
-                                  <div className="p-md rounded-lg text-caption leading-relaxed shadow-subtle border bg-[#fcf8f2] text-ink border-hairline-soft w-full sm:w-[320px]">
-                                    <div className="flex items-center justify-between mb-2">
-                                      <span className="text-[11px] font-bold uppercase tracking-wider text-muted">Parsing Document...</span>
-                                      <span className="text-xs font-bold text-ink">{Math.round(((ingestionStep + 1) / ingestionProgressLog.length) * 100)}%</span>
+                                <div className="flex flex-col gap-1.5 items-start animate-pulse w-full">
+                                  <div className="p-4 rounded-2xl rounded-bl-sm bg-surface-soft text-ink border border-hairline-soft max-w-[85%] w-[320px]">
+                                    <div className="flex items-center justify-between mb-3">
+                                      <span className="text-[11px] font-medium text-muted flex items-center gap-1.5">
+                                        <svg className="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="30 30" strokeLinecap="round" className="opacity-25"></circle><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round"></path></svg>
+                                        Analyzing Document...
+                                      </span>
+                                      <span className="text-[11px] font-medium text-ink">{Math.round(((ingestionStep + 1) / ingestionProgressLog.length) * 100)}%</span>
                                     </div>
-                                    <div className="w-full bg-[#f1f3f5] h-1.5 rounded-full overflow-hidden mb-2">
+                                    <div className="w-full bg-canvas h-1.5 rounded-full overflow-hidden mb-3">
                                       <div 
-                                        className="bg-ink h-full transition-all duration-500"
+                                        className="bg-ink h-full transition-all duration-500 ease-out"
                                         style={{ width: `${((ingestionStep + 1) / ingestionProgressLog.length) * 100}%` }}
                                       ></div>
                                     </div>
-                                    <p className="text-[10px] text-muted font-mono m-0 leading-relaxed">
-                                      &bull; {ingestionProgressLog[ingestionStep]}
+                                    <p className="text-[10px] text-muted m-0 truncate">
+                                      {ingestionProgressLog[ingestionStep]}
                                     </p>
                                   </div>
                                 </div>
@@ -5002,48 +5011,67 @@ export default function WorkspacePage() {
                         </div>
 
                         {/* Input message form */}
-                        <form onSubmit={(e) => handleSendMessage(e)} className="flex gap-sm items-center">
-                          <input
-                            id="chat-file-upload-input"
-                            type="file"
-                            onChange={async (e) => {
-                              if (e.target.files && e.target.files[0]) {
-                                await uploadFile(e.target.files[0]);
-                                e.target.value = "";
-                              }
-                            }}
-                            accept=".txt,.pdf,.docx,.doc,.csv,.xlsx,.xls"
-                            className="hidden"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => document.getElementById("chat-file-upload-input")?.click()}
-                            disabled={isSending || isUploading}
-                            className="p-2.5 border border-hairline hover:bg-[#f5e9d4] hover:border-ink rounded-md text-muted hover:text-ink transition-all cursor-pointer flex-shrink-0"
-                            title="Attach and ingest file"
-                          >
-                            <svg viewBox="0 0 24 24" className="w-5 h-5 stroke-current fill-none" strokeWidth="2">
-                              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-                            </svg>
-                          </button>
-                          <input
-                            type="text"
-                            value={inputText}
-                            onChange={(e) => setInputText(e.target.value)}
-                            placeholder={`Ask analyst about dataset values...`}
-                            className="flex-grow bg-canvas text-ink border border-hairline rounded-md px-4 py-2.5 text-caption focus:border-ink outline-none"
-                            required
-                            disabled={isSending || isUploading}
-                          />
-                          <button
-                            type="submit"
-                            disabled={isSending || isUploading || !inputText.trim()}
-                            className="btn-primary w-[110px] h-[40px] flex items-center justify-center text-xs font-semibold py-0 px-2"
-                          >
-                            {isSending ? "Querying..." : "Ask Agent"}
-                          </button>
-                        </form>
-
+                        <div className="pt-2 pb-1 relative bg-canvas">
+                          <form onSubmit={(e) => handleSendMessage(e)} className="relative flex items-end gap-2 bg-surface-soft rounded-2xl border border-hairline focus-within:border-ink focus-within:ring-1 focus-within:ring-ink transition-all p-1.5">
+                            <input
+                              id="chat-file-upload-input"
+                              type="file"
+                              onChange={async (e) => {
+                                if (e.target.files && e.target.files[0]) {
+                                  await uploadFile(e.target.files[0]);
+                                  e.target.value = "";
+                                }
+                              }}
+                              accept=".txt,.pdf,.docx,.doc,.csv,.xlsx,.xls"
+                              className="hidden"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => document.getElementById("chat-file-upload-input")?.click()}
+                              disabled={isSending || isUploading}
+                              className="w-10 h-10 flex items-center justify-center rounded-xl text-muted hover:text-ink hover:bg-canvas transition-colors cursor-pointer flex-shrink-0"
+                              title="Attach file for analysis"
+                            >
+                              <svg viewBox="0 0 24 24" className="w-5 h-5 stroke-current fill-none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+                              </svg>
+                            </button>
+                            <textarea
+                              value={inputText}
+                              onChange={(e) => setInputText(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                  e.preventDefault();
+                                  handleSendMessage(e);
+                                }
+                              }}
+                              placeholder="Message Agent..."
+                              className="flex-grow bg-transparent text-ink border-none px-2 py-2.5 text-[13px] outline-none resize-none max-h-[120px] min-h-[40px]"
+                              rows={1}
+                              required
+                              disabled={isSending || isUploading}
+                              style={{ height: inputText ? 'auto' : '40px' }}
+                            />
+                            <button
+                              type="submit"
+                              disabled={isSending || isUploading || !inputText.trim()}
+                              className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all ${
+                                inputText.trim() && !isSending && !isUploading 
+                                  ? 'bg-ink text-canvas hover:opacity-90 cursor-pointer' 
+                                  : 'bg-transparent text-muted cursor-not-allowed'
+                              }`}
+                              title="Send Message"
+                            >
+                              {isSending ? (
+                                <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="30 30" strokeLinecap="round" className="opacity-25"></circle><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" strokeWidth="3" strokeLinecap="round"></path></svg>
+                              ) : (
+                                <svg viewBox="0 0 24 24" className="w-4 h-4 stroke-current fill-none" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                  <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                                </svg>
+                              )}
+                            </button>
+                          </form>
+                        </div>
                       </div>
 
                       {/* Right Pane: Synced Tools */}
