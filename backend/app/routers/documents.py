@@ -576,7 +576,8 @@ async def load_sample_document(
         os.path.join(settings.UPLOAD_DIR, "..", sample_filename),
         os.path.join(settings.UPLOAD_DIR, "..", "..", sample_filename),
         os.path.join(settings.UPLOAD_DIR, "..", "..", "frontend", "public", sample_filename),
-        os.path.join(settings.UPLOAD_DIR, sample_filename)
+        os.path.join(settings.UPLOAD_DIR, sample_filename),
+        os.path.join(os.path.dirname(__file__), "..", "..", sample_filename)
     ]
     
     source_path = None
@@ -585,12 +586,6 @@ async def load_sample_document(
         if os.path.exists(abs_p):
             source_path = abs_p
             break
-            
-    if not source_path:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Sample dataset file comprehensive_sample_data.csv not found on server."
-        )
 
     uploads_dir = settings.UPLOAD_DIR
     os.makedirs(uploads_dir, exist_ok=True)
@@ -600,14 +595,52 @@ async def load_sample_document(
     local_filename = f"{file_id}.{extension}"
     file_path = os.path.join(uploads_dir, local_filename)
     
-    try:
-        shutil.copyfile(source_path, file_path)
-    except Exception as e:
-        logger.error(f"Error copying sample file: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to copy sample dataset: {str(e)}"
-        )
+    if source_path:
+        try:
+            shutil.copyfile(source_path, file_path)
+        except Exception as e:
+            logger.error(f"Error copying sample file: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to copy sample dataset: {str(e)}"
+            )
+    else:
+        # Built-in fallback template content
+        sample_csv_text = """Date,Category,Region,Sales_Channel,Revenue,Profit,Units_Sold,Marketing_Spend,Customer_Satisfaction,Daily_Active_Users,Feedback_Notes
+2023-01-01,Electronics,North,Online,1250.50,180.25,5,120.00,4.2,950,"Strong holiday weekend sales."
+2023-01-02,Apparel,South,Retail,850.00,290.00,18,65.50,4.5,700,"Good foot traffic in retail stores."
+2023-01-03,Home & Garden,East,Online,1100.20,280.50,9,110.00,3.9,850,"Slight delay in shipping noted by customers."
+2023-01-04,Sports,West,Wholesale,2100.00,630.00,35,180.00,4.8,1600,"Large bulk order fulfilled successfully."
+2023-01-05,Electronics,South,Online,1450.75,210.30,6,150.00,4.0,1100,"Competitor pricing pressured margins slightly."
+2023-01-06,Apparel,North,Retail,920.40,310.20,20,80.00,4.6,750,"New winter collection performing well."
+2023-01-07,Home & Garden,West,Retail,1050.00,260.00,8,95.00,4.3,800,"Standard operational day, no major incidents."
+2023-01-08,Sports,East,Online,1350.25,410.50,22,130.00,4.4,1050,"Email campaign boosted online metrics."
+2023-01-09,Electronics,East,Retail,1600.00,240.00,6,160.00,4.1,1200,"In-store promotions driving volume."
+2023-01-10,Apparel,West,Online,1050.80,360.50,23,90.00,4.7,850,"Customer feedback highlighted fast shipping."
+2023-01-11,Home & Garden,North,Wholesale,2500.00,620.00,20,200.00,4.6,1900,"Supply chain delays affected wholesale availability."
+2023-01-12,Sports,South,Retail,950.00,280.00,15,85.00,4.2,750,"Steady performance in southern region."
+2023-01-13,Electronics,West,Online,1750.50,260.80,7,175.00,3.8,1350,"High return rate observed in online channel."
+2023-01-14,Apparel,East,Retail,1120.00,380.00,25,100.00,4.5,900,"Weekend rush exceeded expectations."
+2023-01-15,Home & Garden,South,Online,1250.20,310.40,10,120.00,4.0,950,"Inventory shortage expected for next month."
+2023-01-16,Sports,North,Wholesale,2800.00,840.00,46,250.00,4.8,2100,"Record breaking B2B sales volume."
+2023-01-17,Electronics,North,Retail,1550.00,230.00,6,150.00,4.3,1150,"Strong demand for new smartphone accessories."
+2023-01-18,Apparel,South,Online,980.50,330.20,21,85.00,4.6,800,"Positive reviews for the new spring line."
+2023-01-19,Home & Garden,West,Wholesale,2200.00,550.00,18,190.00,4.5,1700,"Consistent re-orders from major hardware chains."
+2023-01-20,Sports,East,Retail,1050.00,310.00,17,95.00,4.4,850,"Local marathon event boosted running shoe sales."
+2023-01-21,Electronics,South,Wholesale,3100.00,460.00,12,280.00,4.7,2400,"Large corporate order for laptops."
+2023-01-22,Apparel,West,Retail,1200.40,410.50,26,110.00,4.5,950,"Mall wide discount day increased traffic."
+2023-01-23,Home & Garden,North,Online,1350.80,340.20,11,130.00,4.1,1050,"Slight uptick in gardening tool sales."
+2023-01-24,Sports,South,Online,1450.25,430.50,24,140.00,4.3,1150,"Influencer marketing campaign showing results."
+2023-01-25,Electronics,East,Online,1850.50,270.80,7,185.00,3.9,1450,"Minor server issues during peak hours."
+2023-01-26,Apparel,North,Wholesale,2400.00,820.00,53,220.00,4.7,1850,"Department store bulk order processed."
+2023-01-27,Home & Garden,East,Retail,1150.00,290.00,9,105.00,4.4,900,"Steady weekend preparation sales."
+2023-01-28,Sports,West,Retail,1250.00,370.00,20,115.00,4.5,1000,"Good cross-selling of sports nutrition."
+2023-01-29,Electronics,North,Online,1950.75,290.30,8,195.00,4.1,1500,"End of month tech deals driving volume."
+2023-01-30,Apparel,East,Online,1150.80,390.50,25,105.00,4.6,900,"High engagement on social media platforms."
+2023-01-31,Home & Garden,South,Wholesale,2600.00,650.00,21,230.00,4.6,2000,"Monthly restock orders fulfilled."
+"""
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(sample_csv_text.strip())
         
     size_bytes = os.path.getsize(file_path)
     text_content = parse_csv_file(file_path)
