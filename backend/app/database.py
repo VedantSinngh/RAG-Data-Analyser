@@ -4,10 +4,18 @@ from sqlalchemy.orm import declarative_base
 from app.config import settings
 
 # Create database engine. Echo SQL statements only in development.
+db_url = settings.DATABASE_URL
+is_sqlite = db_url.startswith("sqlite")
+engine_kwargs = {
+    "echo": settings.APP_ENV == "development",
+    "future": True
+}
+if is_sqlite:
+    engine_kwargs["connect_args"] = {"check_same_thread": False}
+
 engine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=settings.APP_ENV == "development",
-    future=True
+    db_url,
+    **engine_kwargs
 )
 
 # Create an async session factory

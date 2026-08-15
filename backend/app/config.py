@@ -16,10 +16,14 @@ class Settings(BaseSettings):
     @field_validator("DATABASE_URL", mode="before")
     @classmethod
     def format_database_url(cls, v: str) -> str:
+        if not v:
+            return "sqlite+aiosqlite:///./analystai.db"
         if v.startswith("postgres://"):
             return v.replace("postgres://", "postgresql+asyncpg://", 1)
         elif v.startswith("postgresql://") and "+asyncpg" not in v:
             return v.replace("postgresql://", "postgresql+asyncpg://", 1)
+        elif v.startswith("sqlite://") and "+aiosqlite" not in v:
+            return v.replace("sqlite://", "sqlite+aiosqlite://", 1)
         return v
 
     # Groq API config (OpenAI-compatible)
