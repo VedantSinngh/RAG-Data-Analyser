@@ -562,6 +562,123 @@ async def upload_document(
         "chunks": len(chunks)
     }
 
+@router.post("/sample", status_code=status.HTTP_201_CREATED)
+async def load_sample_document(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Load prebuilt comprehensive sample CSV dataset directly into user's RAG workspace.
+    """
+    sample_filename = "comprehensive_sample_data.csv"
+    possible_paths = [
+        os.path.join(settings.UPLOAD_DIR, "..", sample_filename),
+        os.path.join(settings.UPLOAD_DIR, "..", "..", sample_filename),
+        os.path.join(settings.UPLOAD_DIR, "..", "..", "frontend", "public", sample_filename),
+        os.path.join(settings.UPLOAD_DIR, sample_filename)
+    ]
+    
+    source_path = None
+    for p in possible_paths:
+        abs_p = os.path.abspath(p)
+        if os.path.exists(abs_p):
+            source_path = abs_p
+            break
+            
+    if not source_path:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Sample dataset file comprehensive_sample_data.csv not found on server."
+        )
+
+    uploads_dir = settings.UPLOAD_DIR
+    os.makedirs(uploads_dir, exist_ok=True)
+    
+    file_id = uuid.uuid4()
+    extension = "csv"
+    local_filename = f"{file_id}.{extension}"
+    file_path = os.path.join(uploads_dir, local_filename)
+    
+    try:
+        shutil.copyfile(source_path, file_path)
+    except Exception as e:
+        logger.error(f"Error copying sample file: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to copy sample dataset: {str(e)}"
+        )
+        
+    size_bytes = os.path.getsize(file_path)
+    text_content = parse_csv_file(file_path)
+    chunks = chunk_text(text_content)
+    
+    hf_api_key = request.headers.get("X-HuggingFace-Api-Key")
+    embeddings = await get_embeddings(chunks, hf_api_key=hf_api_key)
+    metadata_profile = await generate_document_metadata_async(
+        sample_filename, file_path, extension, text_content
+    )
+    metadata_profile["chunks_count"] = len(chunks)
+
+    new_doc = Document(
+        id=file_id,
+        user_id=current_user.id,
+        filename=sample_filename,
+        file_type=extension,
+        storage_url=file_path,
+        size_bytes=size_bytes,
+        status="ready",
+        metadata_json=metadata_profile
+    )
+    db.add(new_doc)
+    
+    chroma_ids = []
+    chroma_embeddings = []
+    chroma_metadatas = []
+    chroma_texts = []
+    
+    for idx, (chunk, embedding) in enumerate(zip(chunks, embeddings)):
+        c_id = str(uuid.uuid4())
+        db_emb = Embedding(
+            document_id=file_id,
+            chunk_index=idx,
+            chunk_text=chunk,
+            chroma_id=c_id
+        )
+        db.add(db_emb)
+        chroma_ids.append(c_id)
+        chroma_embeddings.append(embedding)
+        chroma_metadatas.append({
+            "document_id": str(file_id),
+            "user_id": str(current_user.id),
+            "filename": sample_filename,
+            "chunk_index": idx
+        })
+        chroma_texts.append(chunk)
+        
+    try:
+        get_chroma_collection().add(
+            ids=chroma_ids,
+            embeddings=chroma_embeddings,
+            metadatas=chroma_metadatas,
+            documents=chroma_texts
+        )
+    except Exception as e:
+        logger.error(f"Error adding sample to ChromaDB: {e}")
+        
+    await db.commit()
+    await db.refresh(new_doc)
+    
+    return {
+        "message": "Sample CSV dataset ingested successfully.",
+        "id": str(new_doc.id),
+        "filename": new_doc.filename,
+        "size_bytes": new_doc.size_bytes,
+        "chunks": len(chunks)
+    }
+
+
+
 @router.get("")
 async def list_documents(
     current_user: User = Depends(get_current_user),

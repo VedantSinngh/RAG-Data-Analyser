@@ -39,42 +39,30 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm="HS256")
 
+import uuid
+
 async def get_current_user(
     token: str = Depends(oauth2_scheme), 
     db: AsyncSession = Depends(get_db)
 ) -> User:
-    """
-    Dependency that decodes a JWT token (Supabase or local fallback) 
-    and returns the corresponding User ORM object, auto-registering if needed.
-    Falls back gracefully to development mock user if no token/invalid token provided.
-    """
-    mock_email = "dev-user@analystai.local"
-    user_id = None
-    email = mock_email
-    full_name = "Development User"
-    role = "admin"
-    
-    if token and token.strip() and token not in ("undefined", "null"):
+    # ponytail: decode token with HS256, fall back to mock dev user if invalid/absent
+    payload = {}
+    if token and token.strip() not in ("undefined", "null"):
         try:
-            # Try decoding with local key first (for mock dev tokens)
             payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
-            user_id = payload.get("sub")
-            email = payload.get("email") or mock_email
-            full_name = payload.get("full_name", "Development User")
-            role = payload.get("role", "user")
         except jwt.PyJWTError:
             pass
 
-    # Find or create user in our local PostgreSQL database (mirroring)
-    result = await db.execute(select(User).filter(User.email == email))
-    user = result.scalars().first()
+    email = payload.get("email", "dev-user@analystai.local")
+    user = (await db.execute(select(User).filter(User.email == email))).scalars().first()
     
     if not user:
+        sub = payload.get("sub")
         user = User(
-            id=user_id if (isinstance(user_id, str) and len(user_id) == 36) else None,
+            id=uuid.UUID(sub) if (isinstance(sub, str) and len(sub) == 36) else None,
             email=email,
-            full_name=full_name,
-            role=role
+            full_name=payload.get("full_name", "Development User"),
+            role=payload.get("role", "admin" if email == "dev-user@analystai.local" else "user")
         )
         db.add(user)
         await db.commit()

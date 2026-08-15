@@ -48,152 +48,73 @@ def parse_dataset(file_path: str, extension: str) -> pd.DataFrame:
             return pd.read_excel(file_path)
 
 def clean_data_agent(df: pd.DataFrame, clean_outliers: bool) -> tuple[pd.DataFrame, dict]:
-    """IQR winsorizing cleansing agent."""
-    start_time = time.time()
-    initial_rows = len(df)
-    outliers_detected = 0
-    outliers_details = {}
-    
-    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
-    
+    # ponytail: clip numeric values outside Q1/Q3 1.5x IQR in one clean loop
+    start = time.time()
+    num_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    details = {}
+    total_outliers = 0
     if clean_outliers:
-        for col in numeric_cols:
-            # Drop NaN rows temporarily for quantile calculations
-            series_clean = df[col].dropna()
-            if len(series_clean) < 4:
-                continue
-                
-            q1 = series_clean.quantile(0.25)
-            q3 = series_clean.quantile(0.75)
-            iqr = q3 - q1
-            lower_bound = q1 - 1.5 * iqr
-            upper_bound = q3 + 1.5 * iqr
-            
-            outliers_mask = (df[col] < lower_bound) | (df[col] > upper_bound)
-            count = int(outliers_mask.sum())
-            
-            if count > 0:
-                outliers_detected += count
-                outliers_details[col] = {
-                    "count": count,
-                    "lower_limit": float(lower_bound),
-                    "upper_limit": float(upper_bound),
-                    "mean_before": float(series_clean.mean())
-                }
-                # Winsorize / clip outliers
-                df[col] = df[col].clip(lower=lower_bound, upper=upper_bound)
-                
-    duration_ms = int((time.time() - start_time) * 1000)
-    
-    log = {
-        "status": "success",
-        "duration_ms": duration_ms,
-        "initial_rows": initial_rows,
-        "outliers_detected": outliers_detected,
-        "outliers_details": outliers_details,
-        "numeric_columns_scanned": numeric_cols
+        for col in num_cols:
+            clean = df[col].dropna()
+            if len(clean) >= 4:
+                q1, q3 = clean.quantile([0.25, 0.75])
+                lower, upper = q1 - 1.5 * (q3 - q1), q3 + 1.5 * (q3 - q1)
+                mask = (df[col] < lower) | (df[col] > upper)
+                cnt = int(mask.sum())
+                if cnt > 0:
+                    total_outliers += cnt
+                    details[col] = {"count": cnt, "lower_limit": float(lower), "upper_limit": float(upper), "mean_before": float(clean.mean())}
+                    df[col] = df[col].clip(lower=lower, upper=upper)
+    return df, {
+        "status": "success", "duration_ms": int((time.time() - start) * 1000), "initial_rows": len(df),
+        "outliers_detected": total_outliers, "outliers_details": details, "numeric_columns_scanned": num_cols
     }
-    return df, log
 
 def forecast_agent(df: pd.DataFrame, date_col: str, target_col: str, steps: int) -> tuple[dict, dict]:
-    """Time-series forecasting agent (ARIMA or regression fallback)."""
-    start_time = time.time()
-    
-    # 1. Clean dates and targets
+    # ponytail: parse date/target, aggregate, and perform ARIMA/regression fallback forecasting
+    start = time.time()
     df[date_col] = pd.to_datetime(df[date_col], errors='coerce')
-    df = df.dropna(subset=[date_col, target_col])
-    
-    # Enforce numeric conversion on target
     df[target_col] = pd.to_numeric(df[target_col], errors='coerce')
-    df = df.dropna(subset=[target_col])
-    
-    df = df.sort_values(by=date_col)
-    
-    # Group duplicates
+    df = df.dropna(subset=[date_col, target_col]).sort_values(by=date_col)
     series = df.groupby(date_col)[target_col].mean()
-    
     if len(series) < 5:
         raise ValueError("At least 5 valid historical data points are required to generate time-series projections.")
-        
+    
     history_dates = series.index.strftime('%Y-%m-%d').tolist()
     history_values = [float(v) for v in series.values]
-    
-    predictions = []
-    lower_bounds = []
-    upper_bounds = []
-    method = "ARIMA"
-    coefficients = {}
+    method, coefficients = "ARIMA", {}
     
     try:
-        # Simple ARIMA(1,1,1)
-        model = ARIMA(series.values, order=(1, 1, 1))
-        model_fit = model.fit()
-        
-        # Save coefficients for logs
+        model_fit = ARIMA(series.values, order=(1, 1, 1)).fit()
         coefficients = {k: float(v) for k, v in model_fit.params.items()}
-        
         forecast = model_fit.get_forecast(steps=steps)
         predictions = [float(v) for v in forecast.predicted_mean]
-        
         conf_int = forecast.conf_int(alpha=0.05)
-        lower_bounds = [float(v) for v in conf_int[:, 0]]
-        upper_bounds = [float(v) for v in conf_int[:, 1]]
+        lower_bounds, upper_bounds = [float(v) for v in conf_int[:, 0]], [float(v) for v in conf_int[:, 1]]
     except Exception as e:
-        logger.warning(f"ARIMA fit failed, falling back to Trend Linear Regression: {e}")
+        logger.warning(f"ARIMA failed, using regression fallback: {e}")
         method = "Linear Regression (Trend)"
-        
         X = np.arange(len(history_values)).reshape(-1, 1)
-        y = np.array(history_values)
-        reg = LinearRegression().fit(X, y)
-        
-        coefficients = {
-            "slope": float(reg.coef_[0]),
-            "intercept": float(reg.intercept_)
-        }
-        
+        reg = LinearRegression().fit(X, np.array(history_values))
+        coefficients = {"slope": float(reg.coef_[0]), "intercept": float(reg.intercept_)}
         future_X = np.arange(len(history_values), len(history_values) + steps).reshape(-1, 1)
         predictions = [float(v) for v in reg.predict(future_X)]
-        
-        y_pred = reg.predict(X)
-        residuals = y - y_pred
-        std_err = float(np.std(residuals)) if len(residuals) > 1 else 1.0
-        
+        std_err = float(np.std(history_values - reg.predict(X))) if len(history_values) > 1 else 1.0
         lower_bounds = [float(p - 1.96 * std_err) for p in predictions]
         upper_bounds = [float(p + 1.96 * std_err) for p in predictions]
 
-    # Generate future dates
     diffs = pd.Series(series.index).diff().dropna()
-    # Fallback to 1 day if not calculable
     median_diff = diffs.median() if len(diffs) > 0 else pd.Timedelta(days=1)
+    future_dates = [(series.index[-1] + (median_diff * i)).strftime('%Y-%m-%d') for i in range(1, steps + 1)]
     
-    future_dates = []
-    last_date = series.index[-1]
-    for i in range(1, steps + 1):
-        next_date = last_date + (median_diff * i)
-        future_dates.append(next_date.strftime('%Y-%m-%d'))
-        
-    duration_ms = int((time.time() - start_time) * 1000)
-    
-    result_data = {
-        "method": method,
-        "history_dates": history_dates,
-        "history_values": history_values,
-        "forecast_dates": future_dates,
-        "forecast_values": predictions,
-        "lower_bounds": lower_bounds,
-        "upper_bounds": upper_bounds
+    return {
+        "method": method, "history_dates": history_dates, "history_values": history_values,
+        "forecast_dates": future_dates, "forecast_values": predictions,
+        "lower_bounds": lower_bounds, "upper_bounds": upper_bounds
+    }, {
+        "status": "success", "duration_ms": int((time.time() - start) * 1000), "method": method,
+        "steps": steps, "coefficients": coefficients, "historical_points": len(history_values)
     }
-    
-    log = {
-        "status": "success",
-        "duration_ms": duration_ms,
-        "method": method,
-        "steps": steps,
-        "coefficients": coefficients,
-        "historical_points": len(history_values)
-    }
-    
-    return result_data, log
 
 @router.post("/run", status_code=status.HTTP_201_CREATED)
 async def run_analytics(
