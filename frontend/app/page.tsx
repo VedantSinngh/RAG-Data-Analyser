@@ -796,6 +796,64 @@ export default function WorkspacePage() {
     setFile(null);
   };
 
+  // Ingest prebuilt demo CSV dataset
+  const handleLoadSampleCsv = async () => {
+    setIsUploading(true);
+    setIngestionStep(0);
+    setStatusMsg("");
+
+    const progressTimer = setInterval(() => {
+      setIngestionStep((prev: number) => (prev < ingestionProgressLog.length - 1 ? prev + 1 : prev));
+    }, 1800);
+
+    try {
+      // 1. Try backend sample route first
+      const sampleEndpointRes = await fetch(getApiUrl("/api/v1/documents/sample"), {
+        method: "POST",
+        headers: getAuthHeaders(),
+      });
+
+      if (sampleEndpointRes.ok) {
+        clearInterval(progressTimer);
+        setStatusMsg("SUCCESS: Example CSV dataset (730 records) loaded & indexed successfully!");
+        await loadWorkspaceData();
+        return;
+      }
+
+      // 2. Fallback: Fetch static sample CSV from public folder and upload via multipart file pipeline
+      const csvRes = await fetch("/sample_data.csv");
+      if (!csvRes.ok) {
+        throw new Error("Could not retrieve sample CSV file.");
+      }
+      const blob = await csvRes.blob();
+      const sampleFile = new File([blob], "comprehensive_sample_data.csv", { type: "text/csv" });
+
+      const formData = new FormData();
+      formData.append("file", sampleFile);
+
+      const uploadRes = await fetch(getApiUrl("/api/v1/documents/upload"), {
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: formData,
+      });
+
+      clearInterval(progressTimer);
+
+      if (!uploadRes.ok) {
+        const errData = await uploadRes.json();
+        throw new Error(errData.detail || "Failed to process sample CSV.");
+      }
+
+      setStatusMsg("SUCCESS: Example CSV dataset loaded and indexed in ChromaDB vector store!");
+      await loadWorkspaceData();
+    } catch (err: any) {
+      clearInterval(progressTimer);
+      setStatusMsg(`ERROR: ${err.message || "Failed to load sample dataset."}`);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   // Delete Document
   const handleDeleteDoc = async (docId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -3866,24 +3924,73 @@ export default function WorkspacePage() {
                 >
                   Parse &amp; Ingest
                 </button>
+
+                <div className="flex items-center gap-2 my-1">
+                  <div className="h-[1px] bg-hairline flex-1"></div>
+                  <span className="text-[10px] uppercase font-bold text-muted tracking-wider">or live demo</span>
+                  <div className="h-[1px] bg-hairline flex-1"></div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={handleLoadSampleCsv}
+                    className="px-2.5 py-2 bg-[#f0ebd9] hover:bg-[#e4dcc4] text-ink border border-hairline rounded-md text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 shadow-subtle cursor-pointer"
+                    title="Load prebuilt demo CSV dataset into RAG engine"
+                  >
+                    <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-none stroke-current" strokeWidth="2">
+                      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                    </svg>
+                    Load Demo CSV
+                  </button>
+                  
+                  <a
+                    href="/sample_data.csv"
+                    download="comprehensive_sample_data.csv"
+                    className="px-2.5 py-2 bg-canvas hover:bg-surface-soft text-ink border border-hairline rounded-md text-[11px] font-semibold transition-all flex items-center justify-center gap-1.5 shadow-subtle text-center cursor-pointer"
+                    title="Download sample CSV file locally"
+                  >
+                    <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-none stroke-current" strokeWidth="2">
+                      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
+                    </svg>
+                    Download CSV
+                  </a>
+                </div>
               </form>
             )}
           </div>
 
           {/* Active Library List (Cream background list card) */}
           <div className="border border-hairline p-card-lg bg-canvas rounded-md shadow-subtle flex flex-col gap-md">
-            <span className="text-caption text-ink font-bold border-b border-hairline pb-1.5 block uppercase tracking-wider">
-              Datasets Ingested ({documents.length})
+            <span className="text-caption text-ink font-bold border-b border-hairline pb-1.5 block uppercase tracking-wider flex justify-between items-center">
+              <span>Datasets Ingested ({documents.length})</span>
+              <button
+                type="button"
+                onClick={handleLoadSampleCsv}
+                className="text-[10px] text-ink font-bold hover:underline flex items-center gap-1 uppercase tracking-wider"
+              >
+                + Add Demo Data
+              </button>
             </span>
 
             {documents.length === 0 ? (
-              <div className="text-center py-10 border border-dashed border-hairline rounded-md bg-[#fdfdfd]">
-                <span className="text-caption text-muted font-bold uppercase tracking-wider block mb-1">
+              <div className="text-center p-5 border border-dashed border-hairline rounded-md bg-[#fdfdfd] flex flex-col items-center gap-2">
+                <span className="text-caption text-muted font-bold uppercase tracking-wider block">
                   Storage Empty
                 </span>
                 <p className="text-[12px] text-muted m-0">
-                  Ingest files to index context nodes.
+                  Ingest files or load our pre-packaged retail dataset to explore forecasting and RAG features instantly.
                 </p>
+                <button
+                  type="button"
+                  onClick={handleLoadSampleCsv}
+                  className="mt-1 px-3 py-1.5 bg-[#f5e9d4] hover:bg-[#eadebf] text-ink border border-ink/40 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 shadow-subtle cursor-pointer"
+                >
+                  <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-none stroke-current" strokeWidth="2">
+                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                  </svg>
+                  One-Click Demo Dataset
+                </button>
               </div>
             ) : (
               <div className="flex flex-col gap-2 max-h-[380px] overflow-y-auto pr-1">
@@ -5553,8 +5660,30 @@ export default function WorkspacePage() {
                   Workspace Ready // Awaiting Data Ingestion
                 </span>
                 <p className="text-caption text-muted m-0 max-w-sm mb-md">
-                  Please upload a spreadsheet or text document in the sidebar to initialize the RAG vector store and profile configurations.
+                  Please upload a spreadsheet or text document in the sidebar, or load our prebuilt retail demo dataset to initialize the RAG vector store and profile configurations.
                 </p>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={handleLoadSampleCsv}
+                    className="px-4 py-2 bg-[#f5e9d4] hover:bg-[#eadebf] text-ink border border-ink/50 rounded-md text-xs font-bold transition-all flex items-center gap-2 shadow-subtle cursor-pointer"
+                  >
+                    <svg viewBox="0 0 24 24" className="w-4 h-4 fill-none stroke-current" strokeWidth="2">
+                      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                    </svg>
+                    Load Prebuilt Demo Dataset
+                  </button>
+                  <a
+                    href="/sample_data.csv"
+                    download="comprehensive_sample_data.csv"
+                    className="px-4 py-2 bg-canvas hover:bg-surface-soft text-ink border border-hairline rounded-md text-xs font-semibold transition-all flex items-center gap-2 shadow-subtle cursor-pointer"
+                  >
+                    <svg viewBox="0 0 24 24" className="w-4 h-4 fill-none stroke-current" strokeWidth="2">
+                      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
+                    </svg>
+                    Download Demo CSV
+                  </a>
+                </div>
               </div>
             )}
 
