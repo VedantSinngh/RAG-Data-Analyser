@@ -6,6 +6,10 @@ from app.database import engine
 from app.models import Base  # This loads all models so they register on Base
 from app.routers import auth, documents, analysis, chat, reports
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 # Define lifespan event to auto-generate tables on startup (for local development)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -13,9 +17,13 @@ async def lifespan(app: FastAPI):
     import os
     os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
     os.makedirs(settings.REPORTS_DIR, exist_ok=True)
-    async with engine.begin() as conn:
-        # Create all tables on startup if they don't exist
-        await conn.run_sync(Base.metadata.create_all)
+    try:
+        async with engine.begin() as conn:
+            # Create all tables on startup if they don't exist
+            await conn.run_sync(Base.metadata.create_all)
+            logger.info("Database tables verified successfully.")
+    except Exception as db_err:
+        logger.error(f"Database connection failed on startup: {db_err}. Please ensure DATABASE_URL environment variable is set on your host.")
     yield
     # Shutdown actions
     await engine.dispose()
