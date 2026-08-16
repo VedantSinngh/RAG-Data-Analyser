@@ -238,7 +238,12 @@ async def send_chat_message(
                 select(Document).filter(Document.id == doc_uuid, Document.user_id == current_user.id)
             )
             if doc_res.scalars().first():
-                where_filter["document_id"] = str(req.document_id)
+                where_filter = {
+                    "$and": [
+                        {"user_id": str(current_user.id)},
+                        {"document_id": str(req.document_id)}
+                    ]
+                }
         except ValueError:
             pass
 

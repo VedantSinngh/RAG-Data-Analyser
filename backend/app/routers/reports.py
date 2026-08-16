@@ -485,7 +485,12 @@ async def explain_chart(
     
     where_filter = {"user_id": str(current_user.id)}
     if run.document_id:
-        where_filter["document_id"] = str(run.document_id)
+        where_filter = {
+            "$and": [
+                {"user_id": str(current_user.id)},
+                {"document_id": str(run.document_id)}
+            ]
+        }
         
     retrieved_chunks = []
     try:
