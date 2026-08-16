@@ -3811,9 +3811,15 @@ export default function WorkspacePage() {
       {/* 1. Quietly Editorial Main Header Section */}
       <div className="border-b border-hairline pb-xl flex flex-col md:flex-row md:justify-between md:items-end gap-md">
         <div>
-          <span className="text-caption text-brand-accent uppercase font-bold tracking-widest block mb-1">
-            Unified Analytics Workspace
-          </span>
+          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 mb-1">
+            <span className="text-caption text-brand-accent uppercase font-bold tracking-widest">
+              Unified Analytics Workspace
+            </span>
+            <span className="text-muted text-[10px] select-none">&bull;</span>
+            <span className="text-caption text-muted font-medium bg-[#fcf8f2] border border-[#f5ebd4] px-2 py-0.5 rounded-sm select-none">
+              made by vedant singh
+            </span>
+          </div>
           <h1 className="text-display-lg md:text-display-xl text-ink font-cal m-0 leading-tight">
             Data Analyst Workstation
           </h1>
