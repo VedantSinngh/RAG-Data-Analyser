@@ -60,7 +60,15 @@ class CORSPreflight(BaseHTTPMiddleware):
         if request.method == "OPTIONS":
             response = JSONResponse(content={"detail": "OK"}, status_code=200)
         else:
-            response = await call_next(request)
+            try:
+                response = await call_next(request)
+            except Exception:
+                # If the app crashes (e.g. DB down), still return CORS headers
+                # so the browser shows the real error instead of "CORS blocked"
+                response = JSONResponse(
+                    content={"detail": "Internal server error"},
+                    status_code=500
+                )
 
         # Attach CORS headers
         response.headers["Access-Control-Allow-Origin"] = origin
