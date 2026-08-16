@@ -1,21 +1,23 @@
 import uuid
-from sqlalchemy import Column, String, DateTime, BigInteger, ForeignKey, text
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from datetime import datetime, timezone
+from sqlalchemy import Column, String, DateTime, BigInteger, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from app.database import Base
+from app.models.user import PortableUUID
+
 
 class Document(Base):
     __tablename__ = "documents"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()"))
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    id = Column(PortableUUID(), primary_key=True, default=uuid.uuid4)
+    user_id = Column(PortableUUID(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     filename = Column(String, nullable=False)
-    file_type = Column(String, nullable=False) # 'csv'|'xlsx'|'pdf'|'txt'|'docx'
+    file_type = Column(String, nullable=False)  # 'csv'|'xlsx'|'pdf'|'txt'|'docx'
     storage_url = Column(String, nullable=False)
     size_bytes = Column(BigInteger, nullable=True)
-    status = Column(String, default="pending", server_default="pending") # 'pending'|'processing'|'ready'|'error'
-    metadata_json = Column("metadata", JSONB, default={}, server_default=text("'{}'::jsonb"))
-    created_at = Column(DateTime(timezone=True), server_default=text("now()"))
+    status = Column(String, default="pending", server_default="pending")  # 'pending'|'processing'|'ready'|'error'
+    metadata_json = Column("metadata", JSON, default=dict)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Relationships
     user = relationship("User", back_populates="documents")
