@@ -4,7 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from app.config import settings
-from app.database import engine
+from app import database
+from app.database import init_db
 from app.models import Base  # This loads all models so they register on Base
 from app.routers import auth, documents, analysis, chat, reports
 
@@ -85,23 +86,16 @@ class CORSPreflight(BaseHTTPMiddleware):
         return response
 
 
-# Define lifespan event to auto-generate tables on startup (for local development)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup actions
+    # Startup: create dirs + test DB (falls back to SQLite if PostgreSQL is down)
     import os
     os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
     os.makedirs(settings.REPORTS_DIR, exist_ok=True)
-    try:
-        async with engine.begin() as conn:
-            # Create all tables on startup if they don't exist
-            await conn.run_sync(Base.metadata.create_all)
-            logger.info("Database tables verified successfully.")
-    except Exception as db_err:
-        logger.error(f"Database connection failed on startup: {db_err}. Please ensure DATABASE_URL environment variable is set on your host.")
+    await init_db()
     yield
-    # Shutdown actions
-    await engine.dispose()
+    # Shutdown
+    await database.engine.dispose()
 
 app = FastAPI(
     title="AnalystAI API",
